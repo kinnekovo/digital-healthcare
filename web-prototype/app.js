@@ -277,7 +277,7 @@ async function startRecording() {
     const msg =
       err.name === "NotAllowedError"
         ? "麦克风权限被拒绝，请在浏览器设置中允许麦克风权限后刷新页面。"
-        : `无法访问麦克风：${err.message}`;
+        : "无法访问麦克风，请检查设备连接和浏览器权限后重试。";
     showBanner("danger", "⚠️ " + msg);
     return false;
   }
@@ -383,12 +383,13 @@ async function MOCK_SCORE(asrText, confidence, expectedKeywords, durationMs) {  
   await sleep(400);
 
   // keyword hit rate
-  const asrLower = asrText.toLowerCase();
+  const safeText = typeof asrText === "string" ? asrText : "";
+  const asrLower = safeText.toLowerCase();
   const hits = expectedKeywords.filter((k) => asrLower.includes(k)).length;
   const hit = expectedKeywords.length > 0 ? hits / expectedKeywords.length : 0.5;
 
   // pace: optimal is 1-3 chars/second
-  const chars = asrText.length || 1;
+  const chars = safeText.length || 1;
   const secs = durationMs / 1000;
   const cps = chars / secs;
   const pace = cps >= 0.5 && cps <= 4 ? 1.0 : cps >= 0.3 ? 0.6 : 0.3;
@@ -642,7 +643,7 @@ function saveSession() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(trimmed));
   } catch (_) {
-    // localStorage might be unavailable (private browsing with strict settings)
+    showBanner("warning", "⚠️ 无法保存训练记录（浏览器存储空间已满或隐私模式限制）。");
   }
   return Promise.resolve(session);
 }
