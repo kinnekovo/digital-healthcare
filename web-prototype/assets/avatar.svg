@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" width="200" height="260" role="img" aria-label="Virtual avatar">
+  <!-- Body / clothes -->
+  <ellipse cx="100" cy="230" rx="60" ry="40" fill="#6B9FD4"/>
+  <rect x="55" y="190" width="90" height="50" rx="8" fill="#6B9FD4"/>
+
+  <!-- Neck -->
+  <rect x="88" y="160" width="24" height="36" rx="6" fill="#F5C5A3"/>
+
+  <!-- Head -->
+  <ellipse cx="100" cy="140" rx="52" ry="56" fill="#F5C5A3"/>
+
+  <!-- Hair -->
+  <ellipse cx="100" cy="95" rx="52" ry="28" fill="#4A3728"/>
+  <rect x="48" y="95" width="18" height="30" rx="9" fill="#4A3728"/>
+  <rect x="134" y="95" width="18" height="30" rx="9" fill="#4A3728"/>
+
+  <!-- Eyes (left) -->
+  <ellipse cx="80" cy="135" rx="10" ry="11" fill="white"/>
+  <circle cx="80" cy="136" r="6" fill="#3B2A1A"/>
+  <circle cx="82" cy="133" r="2" fill="white"/>
+
+  <!-- Eyes (right) -->
+  <ellipse cx="120" cy="135" rx="10" ry="11" fill="white"/>
+  <circle cx="120" cy="136" r="6" fill="#3B2A1A"/>
+  <circle cx="122" cy="133" r="2" fill="white"/>
+
+  <!-- Eyebrows -->
+  <path d="M70 120 Q80 115 90 119" stroke="#4A3728" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M110 119 Q120 115 130 120" stroke="#4A3728" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Nose -->
+  <ellipse cx="100" cy="150" rx="5" ry="4" fill="#E8A882"/>
+
+  <!-- Ears -->
+  <ellipse cx="49" cy="140" rx="8" ry="12" fill="#F5C5A3"/>
+  <ellipse cx="151" cy="140" rx="8" ry="12" fill="#F5C5A3"/>
+
+  <!-- Mouth container — animated by JS via #mouth-open -->
+  <g id="mouth-group">
+    <!-- Lips base (always visible) -->
+    <path id="mouth-closed" d="M85 163 Q100 170 115 163" stroke="#C0706A" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- Mouth open overlay (height controlled by JS) -->
+    <ellipse id="mouth-open" cx="100" cy="163" rx="14" ry="0" fill="#8B2020"/>
+  </g>
+
+  <!-- Blush -->
+  <ellipse cx="68" cy="152" rx="10" ry="6" fill="#F4A7B9" opacity="0.5"/>
+  <ellipse cx="132" cy="152" rx="10" ry="6" fill="#F4A7B9" opacity="0.5"/>
+</svg>

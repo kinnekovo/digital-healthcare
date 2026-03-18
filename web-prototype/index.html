@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="脑卒中老人言语康复训练 — 虚拟数字人辅助训练系统" />
+  <title>言语康复训练 · 虚拟数字人</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-wrapper">
+
+    <!-- ── Header ── -->
+    <header class="app-header">
+      <h1>🗣️ 言语康复训练</h1>
+      <p>虚拟数字人陪伴 · 趣味场景对话 · 科学评分反馈</p>
+    </header>
+
+    <!-- ── Status Banner ── -->
+    <div id="status-banner" class="status-banner info" role="status" aria-live="polite">
+      <span id="status-text">👋 欢迎！点击"开始训练"开始今天的言语康复练习。</span>
+    </div>
+
+    <!-- ── Avatar Panel ── -->
+    <section class="avatar-panel" aria-label="虚拟数字人">
+
+      <!-- Scene progress dots -->
+      <div id="scene-dots" class="scene-progress" aria-label="训练进度" role="list"></div>
+
+      <!-- Avatar image with mouth overlay -->
+      <div class="avatar-container">
+        <!--
+          The SVG is embedded inline so that JavaScript can directly
+          manipulate #mouth-open (the mouth ellipse ry attribute).
+
+          To replace with a custom avatar:
+          1. Export a 200×260 SVG with id="mouth-open" on the mouth element.
+          2. Replace the <img> below with an <object> tag pointing to your SVG,
+             or inline the SVG source here.
+        -->
+        <object
+          id="avatar-object"
+          data="assets/avatar.svg"
+          type="image/svg+xml"
+          class="avatar-img"
+          aria-label="虚拟主播头像"
+          title="虚拟主播">
+          <!-- Fallback if SVG objects are not supported -->
+          <img src="assets/avatar.svg" alt="虚拟主播头像" class="avatar-img" />
+        </object>
+
+        <!-- Recording status indicator dot -->
+        <div id="avatar-status" class="avatar-status" role="img" aria-label="状态指示灯"></div>
+      </div>
+
+      <!-- Robot subtitle / prompt text -->
+      <div class="subtitle-box" aria-live="polite" aria-label="机器人提示">
+        <span class="label">机器人说：</span>
+        <span id="subtitle-text">点击"开始训练"开始今天的言语康复练习。</span>
+      </div>
+
+      <!-- User hint text -->
+      <p id="hint-text" class="hint-text"></p>
+
+      <!-- Audio waveform canvas (visible while recording) -->
+      <div class="visualizer-wrap" aria-hidden="true">
+        <canvas id="visualizer" width="300" height="48"></canvas>
+      </div>
+
+      <!-- Recording indicator -->
+      <div id="rec-indicator" class="recording-indicator" role="alert" aria-live="assertive">
+        <div class="rec-dot"></div>
+        <span>录音中</span>
+        <span id="rec-timer" class="recording-timer">0s / 10s</span>
+      </div>
+
+    </section><!-- /avatar-panel -->
+
+    <!-- ── Main Control Buttons ── -->
+    <div class="btn-group" role="group" aria-label="训练控制按钮">
+      <button id="btn-start"     class="btn btn-primary"  type="button">🚀 开始训练</button>
+      <button id="btn-play-robot" class="btn btn-outline" type="button" disabled>🔊 播放机器人</button>
+      <button id="btn-record"    class="btn btn-danger"   type="button" disabled>🎙️ 开始录音</button>
+      <button id="btn-stop"      class="btn btn-neutral"  type="button" disabled style="display:none">⏹ 停止录音</button>
+      <button id="btn-playback"  class="btn btn-neutral"  type="button" disabled style="display:none">▶️ 播放录音</button>
+      <button id="btn-next"      class="btn btn-success"  type="button" disabled style="display:none">提交 →</button>
+      <button id="btn-restart"   class="btn btn-primary"  type="button" disabled style="display:none">🔄 重新开始</button>
+    </div>
+
+    <!-- ── Feedback / Score Panel ── -->
+    <section id="feedback-panel" class="feedback-panel" aria-label="评分反馈" aria-live="polite">
+      <h2 class="card-title">📊 本轮评分</h2>
+      <div class="score-display">
+        <div id="score-circle" class="score-circle fair" role="img" aria-label="得分">
+          <span id="score-num" class="score-num">--</span>
+          <span id="score-label" class="score-label">--</span>
+        </div>
+        <div>
+          <p id="feedback-text" class="feedback-text">--</p>
+          <p id="feedback-tip"  class="feedback-tip">--</p>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-divider" />
+
+    <!-- ── Data Center ── -->
+    <section class="card" aria-label="数据中心">
+      <h2 class="card-title">📈 数据中心</h2>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span id="stat-sessions"  class="stat-value">0</span>
+          <span class="stat-label">训练次数</span>
+        </div>
+        <div class="stat-box">
+          <span id="stat-turns"     class="stat-value">0</span>
+          <span class="stat-label">总对话轮数</span>
+        </div>
+        <div class="stat-box">
+          <span id="stat-avg-score" class="stat-value">--</span>
+          <span class="stat-label">平均可懂度分</span>
+        </div>
+      </div>
+
+      <h3 style="font-size:1.3rem;font-weight:700;margin-bottom:0.75rem;">历史记录</h3>
+      <ul id="history-list" class="history-list" aria-label="训练历史记录">
+        <li class="history-empty">暂无训练记录。开始您的第一次训练吧！</li>
+      </ul>
+    </section>
+
+    <!-- ── Design Notes (collapsed; for developers) ── -->
+    <section class="card" aria-label="开发者说明">
+      <details class="design-notes">
+        <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
+        <pre>
+架构概览（当前为纯前端 Mock 实现）
+======================================
+
+当前 Mock 函数（app.js）         →  真实 FastAPI 端点（替换位置）
+─────────────────────────────────────────────────────────────────
+MOCK_TTS(text)                   →  POST /api/tts
+                                       body: { text: string }
+                                       resp: { audio_url: string }
+
+MOCK_ASR(audioBlob, keywords)    →  POST /api/asr
+                                       body: FormData { audio, expected_keywords }
+                                       resp: { text: string, confidence: number }
+
+MOCK_SCORE(text, conf, kw, dur)  →  POST /api/score
+                                       body: { asr_text, confidence,
+                                               expected_keywords, duration_ms }
+                                       resp: { score, label, feedback, tip }
+
+统一返回格式：
+{ "code": 200, "msg": "ok", "data": { ... } }
+
+替换步骤：
+1. 在 app.js 中找到三个 /* API_HOOK */ 注释的函数。
+2. 将函数体替换为 fetch('/api/...', {...}) 调用。
+3. 处理错误码（401 未授权 / 429 限流 / 500 服务异常）。
+4. 在后端：使用 FastAPI + Pydantic 定义请求/响应模型。
+
+口型同步原理：
+─────────────
+1. HTMLAudioElement 连接到 Web Audio API AnalyserNode。
+2. 每帧读取 TimeDomain 数据 → 计算 RMS 均方根振幅。
+3. 低通滤波（指数平滑系数 0.25）消除抖动。
+4. 将 0..0.3 RMS 映射到 0..1 张嘴比例。
+5. 设置 SVG #mouth-open ellipse 的 ry 属性（0..14px）。
+
+如需更高精度口型同步：
+• TTS 端点返回 viseme_timeline: [{time_ms, viseme_id}, ...]
+• 前端按时间轴切换 SVG 口型状态（需在 SVG 中添加多组口型图层）
+
+本地运行：
+─────────
+  python3 -m http.server 8080
+  # 访问 http://localhost:8080/web-prototype/
+
+浏览器要求：
+  Chrome 66+ / Firefox 60+ / Safari 14.1+ / Edge 79+
+  需要 HTTPS 或 localhost 才能访问麦克风权限。
+
+替换 Avatar（虚拟形象）：
+  1. 准备 200×260 SVG，在口部添加 id="mouth-open" 的 ellipse 元素。
+  2. 替换 assets/avatar.svg 文件。
+  3. ry 属性会由 JS 动态设置（0..14）。
+
+替换示例音频：
+  1. 将 WAV/MP3 文件放入 assets/ 目录。
+  2. 修改 app.js 顶部的 SAMPLE_AUDIO_URL 常量。
+  3. 也可在 app.js 的 MOCK_TTS() 中指定不同音频 URL。
+
+数据存储：
+  所有训练记录存储在浏览器 localStorage (key: rehab_sessions_v1)。
+  格式：Session[] → Turn[] 嵌套结构。
+  接入后端后可改为 POST /api/session/save 同步到数据库。
+        </pre>
+      </details>
+    </section>
+
+  </div><!-- /app-wrapper -->
+
+  <script src="app.js"></script>
+</body>
+</html>
