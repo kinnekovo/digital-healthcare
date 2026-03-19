@@ -1,118 +1,123 @@
 # 脑卒中言语康复训练原型 — 虚拟数字人
 
-A static HTML prototype demonstrating a **stroke-elderly speech rehabilitation training loop** with a virtual streamer-style avatar, lip-sync animation, voice recording, mock intelligibility scoring, and a local data centre.
+A static HTML prototype demonstrating a **stroke-elderly speech rehabilitation training loop** with a virtual streamer-style avatar, lip-sync animation, voice recording, mock intelligibility scoring, and a data centre with trend visualisation.
 
 ---
 
 ## Directory Structure
 
 ```
-web-prototype/
-├── index.html          ← Single-page app entry point
-├── styles.css          ← Elderly-friendly UI styles
-├── app.js              ← All application logic
+digital-healthcare/
+├── index.html          ← Single-page app entry point (hash-routed)
+├── styles.css          ← Elderly-friendly UI styles (+ high-contrast mode)
+├── app.js              ← Bootstrap, hash router, shared utils, Supabase auth, cloud sync
+├── train.js            ← Scene loading, scene selection, training loop, recording, lip-sync
+├── dataCenter.js       ← Trend chart, history list, session details modal
+├── settings.js         ← Preferences (font size, high contrast), account status
+├── scenes.json         ← Scene scripts (3 scenes; edit here to add/change dialogue)
+├── supabaseClient.js   ← Supabase JS client init (anon key only)
 ├── assets/
-│   ├── avatar.svg      ← Placeholder 2D avatar (SVG, animatable mouth)
-│   └── robot_sample.wav ← Placeholder 440 Hz tone (replace with real TTS audio)
+│   ├── avatar.svg          ← Placeholder 2D avatar (SVG, animatable mouth)
+│   └── robot_sample.wav    ← Placeholder 440 Hz tone (replace with real TTS audio)
 └── README.md           ← This file
 ```
 
 ---
 
-## How to Run Locally
+## Navigation (Hash Routing)
 
-Microphone access requires either **HTTPS** or **localhost**. Use any static file server:
+The app uses hash-based in-page routing — no server redirects required:
 
-```bash
-# Option 1 — Python (recommended)
-cd /path/to/digital-healthcare
-python3 -m http.server 8080
-# Open: http://localhost:8080/web-prototype/
+| URL hash    | Tab          | Description                                       |
+|-------------|--------------|---------------------------------------------------|
+| `#/train`   | 🏋️ 训练      | Scene selection grid + training loop (default)    |
+| `#/data`    | 📈 数据中心  | Trend chart, history list, session details        |
+| `#/settings`| ⚙️ 设置     | Font size, high contrast, account & sync status   |
 
-# Option 2 — Node.js (npx serve)
-npx serve .
-# Open the URL shown in the terminal
+Default route: `https://kinnekovo.github.io/digital-healthcare/` → auto-redirects to `#/train`.
 
-# Option 3 — VS Code Live Server extension
-# Right-click index.html → "Open with Live Server"
+---
+
+## Scene Scripts (`scenes.json`)
+
+Scenes are loaded from `scenes.json` at startup; if the fetch fails the app falls back to a built-in copy.
+
+### Format
+
+```jsonc
+{
+  "scenes": [
+    {
+      "id":    "grocery",       // unique ID (used as scene_id in database)
+      "name":  "买菜",           // display name
+      "icon":  "🛒",            // emoji icon shown on selection card
+      "turns": [
+        {
+          "robot_text": "您好！今天想去超市买什么菜呀？",   // robot utterance (TTS input)
+          "hint":       "试着说：白菜、萝卜、土豆……",       // hint shown below subtitle
+          "keywords":   ["菜","买","白菜","萝卜","土豆"]   // keywords for scoring
+        }
+        // … more turns
+      ]
+    }
+    // … more scenes
+  ]
+}
 ```
 
-> **Do NOT open `index.html` directly from the file system** (`file://`).  
-> The browser will block microphone access unless served from localhost or HTTPS.
+**Current scenes:**
+
+| ID           | Name   | Icon | Turns |
+|--------------|--------|------|-------|
+| `grocery`    | 买菜   | 🛒   | 3     |
+| `directions` | 问路   | 🗺️  | 3     |
+| `phone`      | 打电话 | 📞  | 3     |
+
+To add a scene, append an object to the `scenes` array. No JS changes required.
 
 ---
 
-## Browser Requirements & Permissions
+## How to Run Locally
 
-| Feature | Minimum version |
-|---|---|
-| Web Audio API (lip-sync) | Chrome 66, Firefox 60, Safari 14.1, Edge 79 |
-| MediaRecorder (recording) | Chrome 47, Firefox 25, Edge 79 |
-| MediaDevices.getUserMedia | All modern browsers on HTTPS/localhost |
+Microphone access requires either **HTTPS** or **localhost**:
 
-**Mic permission prompt**: The browser will ask for microphone access the first time you click **"开始录音"**. Click **Allow**.  
-If denied by accident, reset via the browser address-bar padlock → Site Settings → Microphone → Allow, then refresh.
+```bash
+# Python (recommended)
+python3 -m http.server 8080
+# Open: http://localhost:8080/
 
----
+# Node.js
+npx serve .
+```
 
-## How the Mouth Animation Works
-
-1. **Audio source**: When the robot "speaks", an `HTMLAudioElement` plays the audio file.  
-2. **AnalyserNode**: The audio element is routed through a Web Audio API `AnalyserNode` (FFT size 256).  
-3. **RMS calculation**: Each animation frame reads the time-domain waveform data and computes the RMS (root-mean-square) amplitude.  
-4. **Smoothing**: An exponential low-pass filter (`α = 0.25`) is applied to prevent jitter:  
-   `smoothed = 0.25 × rms + 0.75 × previous_smoothed`  
-5. **Mouth mapping**: The smoothed value is clamped to `[0, 0.3]` and mapped to a `[0, 1]` open ratio.  
-6. **SVG manipulation**: The `ry` attribute of the `#mouth-open` SVG ellipse is set to `ratio × 14` pixels, creating a realistic mouth-open animation.
-
-### For higher-quality lip sync (future)
-Add `viseme_timeline: [{time_ms, viseme_id}]` to the TTS API response and switch mouth SVG layers on a scheduler — no external library required.
+> **Do NOT open `index.html` directly** (`file://`).  
+> The browser blocks microphone access unless served from localhost or HTTPS.
 
 ---
 
-## How to Replace Placeholder Assets
+## Browser Requirements
 
-### Replace the Sample Audio
-1. Obtain or record a WAV/MP3 file of the robot greeting.  
-2. Name it `robot_sample.wav` and place it in `web-prototype/assets/`.  
-   To regenerate the placeholder tone (1 second, 440 Hz):
-   ```python
-   import wave, array, math
-   rate = 22050
-   samples = [int(32767 * 0.5 * math.sin(2 * math.pi * 440 * i / rate)) for i in range(rate)]
-   with wave.open("web-prototype/assets/robot_sample.wav", "w") as f:
-       f.setnchannels(1); f.setsampwidth(2); f.setframerate(rate)
-       f.writeframes(array.array("h", samples).tobytes())
-   ```  
-3. Update `SAMPLE_AUDIO_URL` at the top of `app.js` if you use a different filename.  
-4. The current mock `MOCK_TTS()` function in `app.js` always returns this file. When you integrate a real TTS API it will return per-sentence audio URLs instead.
-
-### Replace the Avatar Image
-1. Create a **200 × 260 SVG** with your character artwork.  
-2. Add an `<ellipse id="mouth-open" cx="..." cy="..." rx="14" ry="0" fill="#8B2020"/>` element at the mouth position.  
-3. Replace `assets/avatar.svg` with your new file.  
-4. JavaScript will animate `ry` from `0` (closed) to `14` (fully open) automatically.
-
-For a Live2D model, load it in a separate HTML page via the Live2D Cubism Web SDK and embed it in an `<iframe>` or `<object>`. Bridge events using `postMessage`.
+| Feature                     | Minimum version                              |
+|-----------------------------|----------------------------------------------|
+| Web Audio API (lip-sync)    | Chrome 66, Firefox 60, Safari 14.1, Edge 79  |
+| MediaRecorder (recording)   | Chrome 47, Firefox 25, Edge 79               |
+| MediaDevices.getUserMedia   | All modern browsers on HTTPS/localhost       |
+| `crypto.randomUUID`         | Chrome 92, Firefox 95, Safari 15.4           |
+| Canvas 2D (trend chart)     | All modern browsers                          |
 
 ---
 
-## Training Loop
+## Training Flow
 
-Three scenes, each with three turns:
-
-| Scene | Description |
-|---|---|
-| 🛒 超市购物 | Grocery shopping conversation |
-| 🗺️ 问路 | Asking for directions |
-| 🏠 居家对话 | Home daily conversation |
-
-Flow per turn:
-1. Robot speaks (TTS mock → sample audio + lip sync)  
-2. User records voice (MediaRecorder, max 10 s)  
-3. Mock ASR → recognised text + confidence  
-4. Mock scoring → intelligibility score (0-100) + label + feedback  
-5. Score saved to `localStorage`; data centre updates
+1. Navigate to **#/train** (default).
+2. Choose one of the 3 scene cards (买菜 / 问路 / 打电话).
+3. For each turn in the scene:
+   - Robot "speaks" (mock TTS → sample audio + lip-sync animation)
+   - User records voice (MediaRecorder, max 10 s)
+   - Mock ASR → recognised text + confidence
+   - Mock scoring → intelligibility score (0-100) + label + feedback
+4. After the last turn, session is saved to `localStorage` and async cloud sync starts.
+5. App automatically navigates to **#/data** and highlights the new session row.
 
 ---
 
@@ -123,123 +128,171 @@ score = 100 × (0.5 × confidence + 0.4 × keyword_hit_rate + 0.1 × pace_score)
 
 keyword_hit_rate = matched_keywords / expected_keywords
 pace_score       = 1.0 if 0.5 ≤ chars/sec ≤ 4, else degraded
+jitter           ±5 pts (random)
 ```
 
 Labels: **清晰 (≥ 80)** · **一般 (50–79)** · **需改进 (< 50)**
 
-Data is stored in `localStorage` under key `rehab_sessions_v1` as a JSON array of Session objects (max 50 retained).
+---
+
+## Data Centre Features
+
+- **Trend chart**: Canvas-based line chart of daily average scores for the last 30 days (no external libraries).
+- **History list**: Session rows with date/time, scene name, avg score, turn count, cloud/local sync indicator (☁️/📱).
+- **Session details modal**: Click any history row to see per-turn breakdown (robot_text, score, label, duration). Cloud sessions fetch turns on demand.
+- **Data source**: Logged-in → prefer cloud sessions; offline/logged-out → localStorage fallback.
 
 ---
 
-## Next Steps: Integrating FastAPI + Real ASR/TTS
+## Settings
 
-Three functions in `app.js` are marked `/* API_HOOK */` and can be replaced with `fetch()` calls:
+Preferences are stored in `localStorage` under key `rehab_prefs_v1`:
 
-```js
-// Current (mock)
-async function MOCK_ASR(audioBlob, expectedKeywords) { ... }
+| Key            | Values              | Default | Effect                                 |
+|----------------|---------------------|---------|----------------------------------------|
+| `fontScale`    | `1.0`, `1.1`, `1.2` | `1.0`   | Scales root font-size proportionally   |
+| `highContrast` | `true` / `false`    | `false` | Switches to dark high-contrast palette |
 
-// Replace with:
-async function MOCK_ASR(audioBlob, expectedKeywords) {
-  const form = new FormData();
-  form.append("audio", audioBlob, "recording.webm");
-  form.append("expected_keywords", expectedKeywords.join(","));
-  const res = await fetch("/api/asr", { method: "POST", body: form });
-  const { data } = await res.json();
-  return data; // { text, confidence }
-}
-```
-
-Suggested FastAPI endpoints:
-
-```
-POST /api/tts       { text: str }                           → { audio_url: str }
-POST /api/asr       FormData(audio, expected_keywords)      → { text: str, confidence: float }
-POST /api/score     { asr_text, confidence, expected_keywords, duration_ms }
-                                                            → { score, label, feedback, tip }
-POST /api/session/save  { session }                         → { session_id: str }
-```
-
-Unified response envelope:
-```json
-{ "code": 200, "msg": "ok", "data": { ... } }
-```
-
-See the **开发者说明** collapsible section on the app page for the full integration guide.
+Changes apply instantly and persist across page reloads.
 
 ---
 
-## Security & Privacy Notes
+## `client_session_id` — Session Deduplication
 
-- All audio processing is client-side. No data leaves the browser in this prototype.  
-- `localStorage` data is scoped to the origin (domain + port). Clear it with `localStorage.removeItem("rehab_sessions_v1")`.  
-- When integrating real ASR/TTS services, ensure the backend handles audio data under your applicable privacy regulations (e.g., encrypt at rest, enforce retention limits).
+Every training session generates a `client_session_id` (UUID via `crypto.randomUUID()`).
+
+- Stored in the `localStorage` session object.
+- Included in the Supabase `sessions` row insert (see migration SQL below).
+- On **Sync Now**, before inserting, the app checks if `client_session_id` already exists on the cloud — preventing duplicate rows when the button is clicked multiple times.
+- After training completes, `client_session_id` is used to highlight the new session row in the Data Centre list.
+
+### Graceful degradation
+
+If the `client_session_id` column does not yet exist on the `sessions` table, the app detects PostgreSQL error `42703` (undefined column) and retries the insert without the column — sync still works, deduplication is skipped.
 
 ---
 
 ## Supabase Auth + Cloud Sync
 
-This app supports optional **Supabase Auth** (email + password with email verification) and cloud sync of training sessions.
-
 ### Project configuration
 
-| Setting | Value |
-|---|---|
-| Project URL | `https://mrxubtsdkfotyjuzwjtj.supabase.co` |
-| Anon public key | See `supabaseClient.js` (safe for front-end) |
+| Setting     | Value                                       |
+|-------------|---------------------------------------------|
+| Project URL | `https://mrxubtsdkfotyjuzwjtj.supabase.co`  |
+| Anon key    | See `supabaseClient.js` (safe for front-end) |
 
-> **⚠️ Never expose the `service_role` key** in any client-side file, environment variable, or version control. It bypasses Row Level Security and grants unrestricted database access.
+> **⚠️ Never expose the `service_role` key** in any client-side file or version control.
 
-### Supabase dashboard settings required
+### Authentication → URL Configuration
 
-1. **Authentication → URL Configuration**  
-   - **Site URL**: `https://kinnekovo.github.io/digital-healthcare/`  
-   - **Redirect URLs** (Additional): `https://kinnekovo.github.io/digital-healthcare/`  
-   These ensure the email-verification link redirects back to your GitHub Pages site.
+- **Site URL**: `https://kinnekovo.github.io/digital-healthcare/`
+- **Redirect URLs**: `https://kinnekovo.github.io/digital-healthcare/`
 
-2. **Authentication → Email Templates** (optional)  
-   Customize the verification email to match the app language (Chinese).
-
-3. **Email verification** must remain **enabled** (default). Users must verify their email before they can log in.
-
-### Database schema (already created)
+### Database schema
 
 ```sql
--- sessions table
-create table public.sessions (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references auth.users(id) on delete cascade,
-  scene_id   text not null,
-  started_at timestamptz not null default now(),
-  ended_at   timestamptz,
-  avg_score  numeric,
-  created_at timestamptz not null default now()
+-- sessions table (existing)
+CREATE TABLE IF NOT EXISTS public.sessions (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  scene_id   TEXT NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at   TIMESTAMPTZ,
+  avg_score  NUMERIC,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-alter table public.sessions enable row level security;
--- RLS: users can only access their own rows
-create policy "sessions_select_own" on public.sessions for select using (auth.uid() = user_id);
-create policy "sessions_insert_own" on public.sessions for insert with check (auth.uid() = user_id);
+ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "sessions_select_own" ON public.sessions
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "sessions_insert_own" ON public.sessions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- turns table
-create table public.turns (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references auth.users(id) on delete cascade,
-  session_id   uuid not null references public.sessions(id) on delete cascade,
-  robot_text   text not null,
-  recording_ms integer not null default 0,
-  score        integer not null,
-  label        text not null,
-  created_at   timestamptz not null default now()
+-- turns table (existing)
+CREATE TABLE IF NOT EXISTS public.turns (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_id   UUID NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  robot_text   TEXT NOT NULL,
+  recording_ms INTEGER NOT NULL DEFAULT 0,
+  score        INTEGER NOT NULL,
+  label        TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-alter table public.turns enable row level security;
-create policy "turns_select_own" on public.turns for select using (auth.uid() = user_id);
-create policy "turns_insert_own" on public.turns for insert with check (auth.uid() = user_id);
+ALTER TABLE public.turns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "turns_select_own" ON public.turns
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "turns_insert_own" ON public.turns
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 ```
 
-### How cloud sync works
+### Migration — add `client_session_id` column (NEW)
 
-1. **Register** → user receives a verification email → clicks link → redirected back to the site.  
-2. **Login** → session restored; subsequent training runs are automatically synced to Supabase.  
-3. **Sync Now** button → syncs any local sessions that haven't been uploaded yet (append-only; nothing is deleted or overwritten remotely).  
-4. **Data Centre** → shows cloud sessions when logged in; falls back to `localStorage` if offline or not logged in.  
-5. `localStorage` is always kept as a local backup. A `cloud_synced: true` marker is added to each session after a successful upload.
+Run this once in the Supabase SQL editor to enable full deduplication:
+
+```sql
+-- Add client_session_id column to sessions
+ALTER TABLE public.sessions
+  ADD COLUMN IF NOT EXISTS client_session_id TEXT;
+
+-- Unique index (NULL values are excluded, so old rows without the column are unaffected)
+CREATE UNIQUE INDEX IF NOT EXISTS sessions_client_session_id_unique
+  ON public.sessions (client_session_id)
+  WHERE client_session_id IS NOT NULL;
+
+-- Optional: add scene_name for richer display in Data Centre
+ALTER TABLE public.sessions
+  ADD COLUMN IF NOT EXISTS scene_name TEXT;
+```
+
+RLS impact: existing `sessions_insert_own` and `sessions_select_own` policies are unchanged — they use `auth.uid() = user_id`, which is column-independent.
+
+---
+
+## How to Replace Placeholder Assets
+
+### Sample Audio
+
+```python
+import wave, array, math
+rate = 22050
+samples = [int(32767 * 0.5 * math.sin(2 * math.pi * 440 * i / rate)) for i in range(rate)]
+with wave.open("assets/robot_sample.wav", "w") as f:
+    f.setnchannels(1); f.setsampwidth(2); f.setframerate(rate)
+    f.writeframes(array.array("h", samples).tobytes())
+```
+
+### Avatar Image
+
+1. Create a 200×260 SVG with your character artwork.
+2. Add `<ellipse id="mouth-open" cx="..." cy="..." rx="14" ry="0" fill="#8B2020"/>` at the mouth position.
+3. Replace `assets/avatar.svg`.
+
+---
+
+## Integrating FastAPI + Real ASR/TTS
+
+The three mock functions in `train.js` are the integration points:
+
+```
+MOCK_TTS(text)                   → POST /api/tts
+                                     body: { text }
+                                     resp: { audio_url }
+
+MOCK_ASR(audioBlob, keywords)    → POST /api/asr
+                                     body: FormData { audio, expected_keywords }
+                                     resp: { text, confidence }
+
+MOCK_SCORE(text, conf, kw, dur)  → POST /api/score
+                                     body: { asr_text, confidence, expected_keywords, duration_ms }
+                                     resp: { score, label, feedback, tip }
+```
+
+Unified response envelope: `{ "code": 200, "msg": "ok", "data": { ... } }`
+
+---
+
+## Security & Privacy Notes
+
+- All audio processing is client-side in this prototype. No data leaves the browser.
+- `localStorage` data is origin-scoped. Clear with `localStorage.removeItem("rehab_sessions_v1")`.
+- When integrating real ASR/TTS services, handle audio data per applicable privacy regulations.

@@ -654,3 +654,389 @@ body {
   .auth-modal-box { padding: 1.5rem 1rem; }
   .auth-email { font-size: 0.95rem; }
 }
+
+/* ════════════════════════════════════════════════════
+   NEW STYLES — Tab Navigation, Scene Cards, Trend Chart,
+   Details Modal, Settings Controls, High-Contrast Mode
+   ════════════════════════════════════════════════════ */
+
+/* ── Tab Navigation Bar ── */
+.tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 0.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-card);
+}
+
+.tab-nav-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: var(--font-base);
+  font-weight: 700;
+  padding: 0.85rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  min-height: 58px;
+  transition: background var(--transition), color var(--transition);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-nav-btn:hover:not(.active) {
+  background: #EFF6FF;
+  color: var(--color-primary);
+}
+
+.tab-nav-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: var(--shadow-btn);
+}
+
+/* ── Scene Selection ── */
+.scene-select-card { text-align: center; }
+
+.card-subtitle {
+  color: var(--color-text-muted);
+  font-size: var(--font-base);
+  margin-bottom: 1.5rem;
+}
+
+.scene-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  justify-items: center;
+}
+
+.scene-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 130px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1rem;
+  cursor: pointer;
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--color-text);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+  box-shadow: var(--shadow-card);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scene-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 32px rgba(37,99,235,0.18);
+  transform: translateY(-2px);
+}
+
+.scene-card:active {
+  transform: scale(0.97);
+}
+
+.scene-card-icon  { font-size: 3rem; line-height: 1; }
+.scene-card-name  { font-size: var(--font-lg); font-weight: 700; color: var(--color-primary); }
+.scene-card-turns { color: var(--color-text-muted); font-size: 0.95rem; }
+
+.scene-card-placeholder {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 2rem;
+  grid-column: 1 / -1;
+}
+
+/* ── Trend Chart ── */
+.section-heading {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.75rem;
+}
+
+.trend-chart-wrap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.trend-canvas {
+  display: block;
+  width: 100%;
+  height: 160px;
+}
+
+/* ── Enhanced History Item ── */
+.history-item {
+  cursor: pointer;
+}
+
+.history-item:hover {
+  background: #F8FAFC;
+}
+
+.sync-indicator {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+/* ── Highlight newly created session ── */
+@keyframes highlightPulse {
+  0%   { background: #DBEAFE; }
+  50%  { background: #BFDBFE; }
+  100% { background: transparent; }
+}
+
+.highlight-new {
+  animation: highlightPulse 2.4s ease-out 0.3s forwards;
+}
+
+/* Data source badge */
+.data-source-badge {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.5rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+/* ── Session Details Modal ── */
+.session-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.session-modal-box {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.24);
+  padding: 2rem;
+  width: 100%;
+  max-width: 640px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.session-modal-content {
+  margin-top: 0.5rem;
+}
+
+.turns-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-base);
+}
+
+.turns-table th,
+.turns-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.turns-table th {
+  background: var(--color-bg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.turns-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Settings Controls ── */
+.settings-group {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settings-group-title {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 1rem;
+}
+
+/* Font scale buttons */
+.font-scale-btns {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.font-scale-btn {
+  min-width: 90px;
+  font-size: var(--font-base) !important;
+}
+
+.font-scale-btn.active {
+  background: var(--color-primary) !important;
+  color: white !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* Toggle (high contrast) */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 30px;
+  background: #CBD5E1;
+  border-radius: var(--radius-pill);
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+
+.toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: transform var(--transition);
+}
+
+.toggle-input:checked + .toggle-track {
+  background: var(--color-primary);
+}
+
+.toggle-input:checked + .toggle-track::after {
+  transform: translateX(26px);
+}
+
+.toggle-text {
+  font-size: var(--font-base);
+  color: var(--color-text);
+}
+
+/* Account status rows */
+.settings-status-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: var(--font-base);
+}
+
+.settings-status-label {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.settings-status-value {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.settings-status-value.logged-in  { color: var(--color-success); }
+.settings-status-value.logged-out { color: var(--color-danger);  }
+
+/* ── High Contrast Mode ── */
+body.high-contrast {
+  --color-bg:           #000000;
+  --color-surface:      #111111;
+  --color-primary:      #60A5FA;
+  --color-primary-dark: #93C5FD;
+  --color-danger:       #F87171;
+  --color-danger-dark:  #FCA5A5;
+  --color-success:      #4ADE80;
+  --color-warning:      #FCD34D;
+  --color-text:         #F1F5F9;
+  --color-text-muted:   #94A3B8;
+  --color-border:       #334155;
+  --color-avatar-bg:    #1E3A5F;
+  --color-recording:    #3B0000;
+}
+
+body.high-contrast .tab-nav-btn:hover:not(.active) {
+  background: #1E3A5F;
+}
+
+body.high-contrast .scene-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 32px rgba(96,165,250,0.3);
+}
+
+body.high-contrast .turns-table th {
+  background: #1E293B;
+}
+
+/* ── Responsive tweaks for new elements ── */
+@media (max-width: 600px) {
+  .tab-nav {
+    gap: 0.25rem;
+    padding: 0.4rem;
+  }
+  .tab-nav-btn {
+    font-size: 1rem;
+    padding: 0.75rem 0.4rem;
+    min-height: 52px;
+  }
+  .scene-select-grid {
+    grid-template-columns: 1fr;
+  }
+  .session-modal-box {
+    padding: 1.25rem 1rem;
+  }
+  .turns-table {
+    font-size: 1rem;
+  }
+}
