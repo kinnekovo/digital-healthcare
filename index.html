@@ -21,6 +21,54 @@
       <span id="status-text">👋 欢迎！点击"开始训练"开始今天的言语康复练习。</span>
     </div>
 
+    <!-- ── Account / Auth Section ── -->
+    <div class="auth-section">
+      <!-- Shown when logged out -->
+      <div id="auth-logged-out" class="auth-row">
+        <button id="btn-auth-open" class="btn btn-outline btn-sm" type="button">👤 登录 / 注册</button>
+      </div>
+      <!-- Shown when logged in -->
+      <div id="auth-logged-in" class="auth-row" style="display:none">
+        <span id="auth-user-email" class="auth-email"></span>
+        <button id="btn-sync-now" class="btn btn-outline btn-sm" type="button">☁️ 立即同步</button>
+        <button id="btn-logout"   class="btn btn-neutral btn-sm" type="button">🚪 退出登录</button>
+      </div>
+    </div>
+
+    <!-- ── Auth Modal ── -->
+    <div id="auth-modal" class="auth-modal-overlay" role="dialog" aria-modal="true"
+         aria-labelledby="auth-modal-title" style="display:none">
+      <div class="auth-modal-box">
+        <button id="btn-auth-close" class="auth-modal-close" type="button" aria-label="关闭">✕</button>
+        <h2 class="auth-modal-title" id="auth-modal-title">账户登录</h2>
+
+        <div class="auth-modal-tabs" role="tablist">
+          <button id="tab-login"    class="auth-tab active" type="button"
+                  role="tab" aria-selected="true">登录</button>
+          <button id="tab-register" class="auth-tab"        type="button"
+                  role="tab" aria-selected="false">注册新账户</button>
+        </div>
+
+        <div class="auth-form-group">
+          <label for="auth-email-input" class="auth-label">邮箱地址</label>
+          <input id="auth-email-input" type="email" class="auth-input"
+                 placeholder="example@email.com" autocomplete="email" />
+        </div>
+        <div class="auth-form-group">
+          <label for="auth-password-input" class="auth-label">密码（至少 6 位）</label>
+          <input id="auth-password-input" type="password" class="auth-input"
+                 placeholder="请输入密码" autocomplete="current-password" />
+        </div>
+
+        <div id="auth-modal-error" class="auth-modal-error" style="display:none"></div>
+
+        <div class="auth-modal-actions">
+          <button id="btn-auth-submit" class="btn btn-primary"  type="button">登录</button>
+          <button id="btn-auth-cancel" class="btn btn-neutral"  type="button">取消</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Avatar Panel ── -->
     <section class="avatar-panel" aria-label="虚拟数字人">
 
@@ -202,6 +250,8 @@ MOCK_SCORE(text, conf, kw, dur)  →  POST /api/score
 
   </div><!-- /app-wrapper -->
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabaseClient.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

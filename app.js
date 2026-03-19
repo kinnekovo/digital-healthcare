@@ -95,6 +95,13 @@ const MAX_RECORD_MS = 10_000; // 10 second recording cap
 const AMPLITUDE_SMOOTH = 0.25; // 0..1 low-pass coefficient for mouth animation
 const SAMPLE_AUDIO_URL = "assets/robot_sample.wav";
 
+// Map Supabase scene_id values to display names
+const SCENE_NAMES = {
+  supermarket: "🛒 超市购物",
+  directions:  "🗺️ 问路",
+  home:        "🏠 居家对话",
+};
+
 /* ================================================================
    APP STATE
    ================================================================ */
@@ -111,6 +118,13 @@ let state = {
   recordingUrl: null,
   recordingDurationMs: 0,
   recordingStartTime: null,
+};
+
+// Authentication & cloud-sync state
+let authState = {
+  user: null,
+  cloudSyncEnabled: false,
+  modalMode: "login", // "login" | "register"
 };
 
 /* ================================================================
@@ -149,6 +163,23 @@ const dom = {
   statTurns:          $("stat-turns"),
   statAvgScore:       $("stat-avg-score"),
   historyList:        $("history-list"),
+  // Auth UI
+  btnAuthOpen:        $("btn-auth-open"),
+  btnAuthClose:       $("btn-auth-close"),
+  btnLogout:          $("btn-logout"),
+  btnSyncNow:         $("btn-sync-now"),
+  btnAuthSubmit:      $("btn-auth-submit"),
+  btnAuthCancel:      $("btn-auth-cancel"),
+  authModal:          $("auth-modal"),
+  authLoggedOut:      $("auth-logged-out"),
+  authLoggedIn:       $("auth-logged-in"),
+  authUserEmail:      $("auth-user-email"),
+  authEmailInput:     $("auth-email-input"),
+  authPasswordInput:  $("auth-password-input"),
+  authModalError:     $("auth-modal-error"),
+  authModalTitle:     $("auth-modal-title"),
+  tabLogin:           $("tab-login"),
+  tabRegister:        $("tab-register"),
 };
 
 /* ================================================================
@@ -594,10 +625,17 @@ async function handleNext() {
   if (isLastTurn && isLastScene) {
     // All done → save session
     state.phase = "done";
-    await saveSession();
+    const savedSession = await saveSession();
     setPhaseUI("done");
     showBanner("success", "🎉 训练完成！已保存到数据中心。");
     renderDataCenter();
+    // Async cloud sync — do not block UI; warn on failure
+    syncSessionToCloud(savedSession).catch(() => {
+      showBanner(
+        "warning",
+        "⚠️ 数据已保存到本地，但云端同步失败，可稍后点击立即同步重试。"
+      );
+    });
   } else {
     // Move to next turn / scene
     if (isLastTurn) {
@@ -658,10 +696,356 @@ function loadSessions() {
 }
 
 /* ================================================================
-   DATA CENTER RENDERING
+   AUTH — INITIALIZATION & STATE MANAGEMENT
    ================================================================ */
 
-function renderDataCenter() {
+async function initAuth() {
+  const sb = window.__SUPABASE__;
+  if (!sb) return;
+
+  // Restore any persisted session (also handles email-confirm redirect tokens)
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      authState.user             = session.user;
+      authState.cloudSyncEnabled = true;
+      updateAuthUI();
+      renderDataCenter();
+    }
+  } catch (err) {
+    console.warn("[initAuth] Failed to restore session:", err);
+  }
+
+  // React to future sign-in / sign-out events
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session) {
+      authState.user             = session.user;
+      authState.cloudSyncEnabled = true;
+    } else {
+      authState.user             = null;
+      authState.cloudSyncEnabled = false;
+    }
+    updateAuthUI();
+    if (event === "SIGNED_IN") {
+      showBanner("success", "✅ 登录成功！训练数据将自动同步到云端。");
+      renderDataCenter();
+    } else if (event === "SIGNED_OUT") {
+      renderDataCenter();
+    }
+  });
+}
+
+function updateAuthUI() {
+  if (authState.user) {
+    dom.authLoggedOut.style.display = "none";
+    dom.authLoggedIn.style.display  = "";
+    dom.authUserEmail.textContent   = authState.user.email || "";
+  } else {
+    dom.authLoggedOut.style.display = "";
+    dom.authLoggedIn.style.display  = "none";
+  }
+}
+
+/* ================================================================
+   AUTH — MODAL
+   ================================================================ */
+
+function openAuthModal(mode) {
+  authState.modalMode = mode || "login";
+  dom.authModal.style.display = "";
+  setAuthModalMode(authState.modalMode);
+  dom.authEmailInput.value    = "";
+  dom.authPasswordInput.value = "";
+  dom.authModalError.style.display = "none";
+  setTimeout(() => dom.authEmailInput.focus(), 50);
+}
+
+function closeAuthModal() {
+  dom.authModal.style.display = "none";
+}
+
+function setAuthModalMode(mode) {
+  authState.modalMode = mode;
+  if (mode === "login") {
+    dom.authModalTitle.textContent = "账户登录";
+    dom.tabLogin.classList.add("active");
+    dom.tabLogin.setAttribute("aria-selected", "true");
+    dom.tabRegister.classList.remove("active");
+    dom.tabRegister.setAttribute("aria-selected", "false");
+    dom.btnAuthSubmit.textContent = "登录";
+    dom.authPasswordInput.setAttribute("autocomplete", "current-password");
+  } else {
+    dom.authModalTitle.textContent = "注册新账户";
+    dom.tabLogin.classList.remove("active");
+    dom.tabLogin.setAttribute("aria-selected", "false");
+    dom.tabRegister.classList.add("active");
+    dom.tabRegister.setAttribute("aria-selected", "true");
+    dom.btnAuthSubmit.textContent = "注册";
+    dom.authPasswordInput.setAttribute("autocomplete", "new-password");
+  }
+}
+
+function showAuthError(msg) {
+  dom.authModalError.textContent  = msg;
+  dom.authModalError.style.display = "";
+}
+
+function translateAuthError(msg) {
+  if (!msg) return "操作失败，请重试。";
+  if (msg.includes("Invalid login credentials"))    return "邮箱或密码错误，请重试。";
+  if (msg.includes("Email not confirmed"))          return "邮箱尚未验证，请查收邮件并点击验证链接后再登录。";
+  if (msg.includes("User already registered"))      return "该邮箱已注册，请直接登录。";
+  if (msg.includes("Password should be at least"))  return "密码至少需要 6 位。";
+  if (msg.includes("Unable to validate email"))     return "邮箱格式不正确，请检查后重试。";
+  return msg;
+}
+
+/* ================================================================
+   AUTH — REGISTER / LOGIN / LOGOUT
+   ================================================================ */
+
+async function handleRegister() {
+  const sb = window.__SUPABASE__;
+  if (!sb) { showAuthError("云端服务未加载，请稍后再试。"); return; }
+
+  const email    = dom.authEmailInput.value.trim();
+  const password = dom.authPasswordInput.value;
+  if (!email || !password) { showAuthError("请填写邮箱地址和密码。"); return; }
+
+  dom.btnAuthSubmit.disabled    = true;
+  dom.btnAuthSubmit.textContent = "注册中…";
+  dom.authModalError.style.display = "none";
+
+  const { error } = await sb.auth.signUp({ email, password });
+
+  dom.btnAuthSubmit.disabled    = false;
+  dom.btnAuthSubmit.textContent = "注册";
+
+  if (error) { showAuthError(translateAuthError(error.message)); return; }
+
+  closeAuthModal();
+  showBanner(
+    "success",
+    "✅ 注册成功！请查收邮箱中的验证邮件，点击链接完成验证后即可登录。"
+  );
+}
+
+async function handleLogin() {
+  const sb = window.__SUPABASE__;
+  if (!sb) { showAuthError("云端服务未加载，请稍后再试。"); return; }
+
+  const email    = dom.authEmailInput.value.trim();
+  const password = dom.authPasswordInput.value;
+  if (!email || !password) { showAuthError("请填写邮箱地址和密码。"); return; }
+
+  dom.btnAuthSubmit.disabled    = true;
+  dom.btnAuthSubmit.textContent = "登录中…";
+  dom.authModalError.style.display = "none";
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+
+  dom.btnAuthSubmit.disabled    = false;
+  dom.btnAuthSubmit.textContent = "登录";
+
+  if (error) { showAuthError(translateAuthError(error.message)); return; }
+
+  closeAuthModal();
+  // onAuthStateChange will update UI and call renderDataCenter
+}
+
+async function handleLogout() {
+  const sb = window.__SUPABASE__;
+  if (!sb) return;
+
+  await sb.auth.signOut();
+  showBanner("info", "🚪 已退出登录。");
+  // onAuthStateChange will update UI and call renderDataCenter
+}
+
+/* ================================================================
+   CLOUD SYNC
+   ================================================================ */
+
+/**
+ * Sync one local session to Supabase (append-only).
+ * Returns true on success, false on failure or if not applicable.
+ */
+async function syncSessionToCloud(localSession) {
+  if (!authState.cloudSyncEnabled || !authState.user) return false;
+  if (!localSession || localSession.cloud_synced)      return true;
+
+  const sb = window.__SUPABASE__;
+  if (!sb) return false;
+
+  try {
+    // Determine primary scene_id from first turn
+    const firstTurn = localSession.turns && localSession.turns[0];
+    const scene_id  = firstTurn
+      ? firstTurn.scene_id
+      : (localSession.scene_names || "unknown");
+
+    // Insert the session row
+    const { data: cloudSession, error: sessionError } = await sb
+      .from("sessions")
+      .insert({
+        user_id:     authState.user.id,
+        scene_id:    scene_id,
+        started_at:  localSession.timestamp,
+        ended_at:    localSession.timestamp,
+        avg_score:   localSession.avg_score,
+      })
+      .select("id")
+      .single();
+
+    if (sessionError) throw sessionError;
+
+    // Insert turn rows
+    if (localSession.turns && localSession.turns.length > 0) {
+      const turnsPayload = localSession.turns.map((t) => ({
+        user_id:      authState.user.id,
+        session_id:   cloudSession.id,
+        robot_text:   t.robot_text  || "",
+        recording_ms: t.duration_ms || 0,
+        score:        t.score       || 0,
+        label:        t.label       || "unclear",
+      }));
+
+      const { error: turnsError } = await sb.from("turns").insert(turnsPayload);
+      if (turnsError) throw turnsError;
+    }
+
+    // Mark as synced in localStorage
+    markSessionAsSynced(localSession.session_id);
+    return true;
+  } catch (err) {
+    console.warn("[syncSessionToCloud] Failed:", err);
+    return false;
+  }
+}
+
+/** Stamp a local session record with cloud_synced: true */
+function markSessionAsSynced(sessionId) {
+  try {
+    const sessions = loadSessions();
+    const updated  = sessions.map((s) =>
+      s.session_id === sessionId ? Object.assign({}, s, { cloud_synced: true }) : s
+    );
+    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn("[markSessionAsSynced] Failed to update localStorage:", err);
+  }
+}
+
+/**
+ * Sync all un-synced local sessions to the cloud (invoked by Sync Now button).
+ */
+async function syncAllLocalToCloud() {
+  if (!authState.cloudSyncEnabled || !authState.user) {
+    showBanner("warning", "⚠️ 请先登录才能将数据同步到云端。");
+    return;
+  }
+
+  const sessions = loadSessions();
+  const unsynced  = sessions.filter((s) => !s.cloud_synced);
+
+  if (unsynced.length === 0) {
+    showBanner("success", "✅ 所有本地数据已同步到云端。");
+    return;
+  }
+
+  showBanner("info", `☁️ 正在同步 ${unsynced.length} 条记录，请稍候…`);
+
+  let successCount = 0;
+  for (const session of unsynced) {
+    const ok = await syncSessionToCloud(session);
+    if (ok) successCount++;
+  }
+
+  if (successCount === unsynced.length) {
+    showBanner("success", `✅ 已成功同步 ${successCount} 条记录到云端。`);
+  } else if (successCount > 0) {
+    showBanner(
+      "warning",
+      `⚠️ 部分同步完成：${successCount} / ${unsynced.length} 条成功，请稍后重试。`
+    );
+  } else {
+    showBanner("danger", "❌ 同步失败，请检查网络连接后重试。");
+  }
+
+  renderDataCenter();
+}
+
+/**
+ * Async — prefers cloud data when logged in; falls back to localStorage.
+ * Safe to call without await (runs in background and updates DOM when ready).
+ */
+async function renderDataCenter() {
+  if (authState.cloudSyncEnabled && authState.user) {
+    const sb = window.__SUPABASE__;
+    if (sb) {
+      try {
+        const { data: cloudSessions, error } = await sb
+          .from("sessions")
+          .select("id, scene_id, avg_score, created_at")
+          .eq("user_id", authState.user.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (!error && cloudSessions) {
+          renderDataCenterCloud(cloudSessions);
+          return;
+        }
+      } catch (err) {
+        console.warn("[renderDataCenter] Cloud fetch failed, falling back to localStorage:", err);
+        // Fall through to localStorage
+      }
+    }
+  }
+  renderDataCenterLocal();
+}
+
+function renderDataCenterCloud(cloudSessions) {
+  const totalSessions = cloudSessions.length;
+  const avgScore =
+    totalSessions > 0
+      ? Math.round(
+          cloudSessions.reduce((s, sess) => s + (Number(sess.avg_score) || 0), 0) /
+            totalSessions
+        )
+      : 0;
+
+  dom.statSessions.textContent  = totalSessions;
+  dom.statTurns.textContent     = "--";
+  dom.statAvgScore.textContent  = totalSessions > 0 ? avgScore : "--";
+
+  dom.historyList.innerHTML = "";
+  if (cloudSessions.length === 0) {
+    dom.historyList.innerHTML =
+      '<li class="history-empty">暂无云端训练记录。完成一次训练后数据将自动同步。</li>';
+    return;
+  }
+
+  cloudSessions.forEach((sess) => {
+    const li = document.createElement("li");
+    li.className = "history-item";
+
+    const score     = Number(sess.avg_score) || 0;
+    const label     = scoreToLabel(score);
+    const date      = formatDate(sess.created_at);
+    const sceneName = SCENE_NAMES[sess.scene_id] || escapeHtml(sess.scene_id || "训练");
+
+    li.innerHTML = `
+      <span class="history-score ${label}">${score > 0 ? score : "--"}</span>
+      <div class="history-meta">
+        <div class="scene-name">${sceneName}</div>
+        <div class="time-info">${date}</div>
+      </div>
+    `;
+    dom.historyList.appendChild(li);
+  });
+}
+
+function renderDataCenterLocal() {
   const sessions = loadSessions();
 
   const totalSessions = sessions.length;
@@ -677,7 +1061,6 @@ function renderDataCenter() {
   dom.statTurns.textContent     = totalTurns;
   dom.statAvgScore.textContent  = totalSessions > 0 ? avgScore : "--";
 
-  // History list
   dom.historyList.innerHTML = "";
 
   if (sessions.length === 0) {
@@ -965,6 +1348,34 @@ function initEventListeners() {
     dom.sceneDots.innerHTML      = "";
     setAvatarStatus("");
   });
+
+  // ── Auth UI event listeners ──
+  dom.btnAuthOpen.addEventListener("click",   () => openAuthModal("login"));
+  dom.btnAuthClose.addEventListener("click",  closeAuthModal);
+  dom.btnAuthCancel.addEventListener("click", closeAuthModal);
+  dom.btnLogout.addEventListener("click",     handleLogout);
+  dom.btnSyncNow.addEventListener("click",    syncAllLocalToCloud);
+
+  dom.tabLogin.addEventListener("click",    () => setAuthModalMode("login"));
+  dom.tabRegister.addEventListener("click", () => setAuthModalMode("register"));
+
+  dom.btnAuthSubmit.addEventListener("click", () => {
+    if (authState.modalMode === "login") {
+      handleLogin();
+    } else {
+      handleRegister();
+    }
+  });
+
+  // Allow Enter key in password field to submit the form
+  dom.authPasswordInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") dom.btnAuthSubmit.click();
+  });
+
+  // Close modal when clicking the backdrop
+  dom.authModal.addEventListener("click", (e) => {
+    if (e.target === dom.authModal) closeAuthModal();
+  });
 }
 
 /* ================================================================
@@ -976,4 +1387,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setPhaseUI("idle");
   renderDataCenter();
   showBanner("info", '👋 欢迎！点击"开始训练"开始今天的言语康复练习。');
+  // Initialize Supabase auth (async — updates UI when session is restored)
+  initAuth();
 });
