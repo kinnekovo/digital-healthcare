@@ -16,18 +16,32 @@
       <p>虚拟数字人陪伴 · 趣味场景对话 · 科学评分反馈</p>
     </header>
 
-    <!-- ── Status Banner ── -->
+    <!-- ── Tab Navigation Bar ── -->
+    <nav class="tab-nav" role="tablist" aria-label="功能导航">
+      <button id="nav-train" class="tab-nav-btn active" type="button"
+              role="tab" aria-selected="true"  data-tab="train">
+        🏋️ 训练
+      </button>
+      <button id="nav-data"  class="tab-nav-btn"        type="button"
+              role="tab" aria-selected="false" data-tab="data">
+        📈 数据中心
+      </button>
+      <button id="nav-settings" class="tab-nav-btn"     type="button"
+              role="tab" aria-selected="false" data-tab="settings">
+        ⚙️ 设置
+      </button>
+    </nav>
+
+    <!-- ── Global Status Banner ── -->
     <div id="status-banner" class="status-banner info" role="status" aria-live="polite">
-      <span id="status-text">👋 欢迎！点击"开始训练"开始今天的言语康复练习。</span>
+      <span id="status-text">👋 欢迎！请选择一个场景开始今天的言语康复练习。</span>
     </div>
 
-    <!-- ── Account / Auth Section ── -->
+    <!-- ── Auth Bar (top-right, shown on all tabs) ── -->
     <div class="auth-section">
-      <!-- Shown when logged out -->
       <div id="auth-logged-out" class="auth-row">
         <button id="btn-auth-open" class="btn btn-outline btn-sm" type="button">👤 登录 / 注册</button>
       </div>
-      <!-- Shown when logged in -->
       <div id="auth-logged-in" class="auth-row" style="display:none">
         <span id="auth-user-email" class="auth-email"></span>
         <button id="btn-sync-now" class="btn btn-outline btn-sm" type="button">☁️ 立即同步</button>
@@ -69,123 +83,191 @@
       </div>
     </div>
 
-    <!-- ── Avatar Panel ── -->
-    <section class="avatar-panel" aria-label="虚拟数字人">
+    <!-- ════════════════════════════════════════════
+         SECTION: TRAIN (#/train)
+         ════════════════════════════════════════════ -->
+    <section id="section-train" role="tabpanel" aria-labelledby="nav-train">
 
-      <!-- Scene progress dots -->
-      <div id="scene-dots" class="scene-progress" aria-label="训练进度" role="list"></div>
-
-      <!-- Avatar image with mouth overlay -->
-      <div class="avatar-container">
-        <!--
-          The SVG is embedded inline so that JavaScript can directly
-          manipulate #mouth-open (the mouth ellipse ry attribute).
-
-          To replace with a custom avatar:
-          1. Export a 200×260 SVG with id="mouth-open" on the mouth element.
-          2. Replace the <img> below with an <object> tag pointing to your SVG,
-             or inline the SVG source here.
-        -->
-        <object
-          id="avatar-object"
-          data="assets/avatar.svg"
-          type="image/svg+xml"
-          class="avatar-img"
-          aria-label="虚拟主播头像"
-          title="虚拟主播">
-          <!-- Fallback if SVG objects are not supported -->
-          <img src="assets/avatar.svg" alt="虚拟主播头像" class="avatar-img" />
-        </object>
-
-        <!-- Recording status indicator dot -->
-        <div id="avatar-status" class="avatar-status" role="img" aria-label="状态指示灯"></div>
-      </div>
-
-      <!-- Robot subtitle / prompt text -->
-      <div class="subtitle-box" aria-live="polite" aria-label="机器人提示">
-        <span class="label">机器人说：</span>
-        <span id="subtitle-text">点击"开始训练"开始今天的言语康复练习。</span>
-      </div>
-
-      <!-- User hint text -->
-      <p id="hint-text" class="hint-text"></p>
-
-      <!-- Audio waveform canvas (visible while recording) -->
-      <div class="visualizer-wrap" aria-hidden="true">
-        <canvas id="visualizer" width="300" height="48"></canvas>
-      </div>
-
-      <!-- Recording indicator -->
-      <div id="rec-indicator" class="recording-indicator" role="alert" aria-live="assertive">
-        <div class="rec-dot"></div>
-        <span>录音中</span>
-        <span id="rec-timer" class="recording-timer">0s / 10s</span>
-      </div>
-
-    </section><!-- /avatar-panel -->
-
-    <!-- ── Main Control Buttons ── -->
-    <div class="btn-group" role="group" aria-label="训练控制按钮">
-      <button id="btn-start"     class="btn btn-primary"  type="button">🚀 开始训练</button>
-      <button id="btn-play-robot" class="btn btn-outline" type="button" disabled>🔊 播放机器人</button>
-      <button id="btn-record"    class="btn btn-danger"   type="button" disabled>🎙️ 开始录音</button>
-      <button id="btn-stop"      class="btn btn-neutral"  type="button" disabled style="display:none">⏹ 停止录音</button>
-      <button id="btn-playback"  class="btn btn-neutral"  type="button" disabled style="display:none">▶️ 播放录音</button>
-      <button id="btn-next"      class="btn btn-success"  type="button" disabled style="display:none">提交 →</button>
-      <button id="btn-restart"   class="btn btn-primary"  type="button" disabled style="display:none">🔄 重新开始</button>
-    </div>
-
-    <!-- ── Feedback / Score Panel ── -->
-    <section id="feedback-panel" class="feedback-panel" aria-label="评分反馈" aria-live="polite">
-      <h2 class="card-title">📊 本轮评分</h2>
-      <div class="score-display">
-        <div id="score-circle" class="score-circle fair" role="img" aria-label="得分">
-          <span id="score-num" class="score-num">--</span>
-          <span id="score-label" class="score-label">--</span>
-        </div>
-        <div>
-          <p id="feedback-text" class="feedback-text">--</p>
-          <p id="feedback-tip"  class="feedback-tip">--</p>
-        </div>
-      </div>
-    </section>
-
-    <hr class="section-divider" />
-
-    <!-- ── Data Center ── -->
-    <section class="card" aria-label="数据中心">
-      <h2 class="card-title">📈 数据中心</h2>
-
-      <div class="stats-grid">
-        <div class="stat-box">
-          <span id="stat-sessions"  class="stat-value">0</span>
-          <span class="stat-label">训练次数</span>
-        </div>
-        <div class="stat-box">
-          <span id="stat-turns"     class="stat-value">0</span>
-          <span class="stat-label">总对话轮数</span>
-        </div>
-        <div class="stat-box">
-          <span id="stat-avg-score" class="stat-value">--</span>
-          <span class="stat-label">平均可懂度分</span>
+      <!-- Scene Selection Grid -->
+      <div id="scene-select" class="card scene-select-card">
+        <h2 class="card-title">🎯 选择训练场景</h2>
+        <p class="card-subtitle">请选择一个场景，开始今天的言语康复练习：</p>
+        <div id="scene-select-grid" class="scene-select-grid">
+          <!-- Scene cards injected by train.js -->
+          <div class="scene-card-placeholder">⏳ 正在加载场景…</div>
         </div>
       </div>
 
-      <h3 style="font-size:1.3rem;font-weight:700;margin-bottom:0.75rem;">历史记录</h3>
-      <ul id="history-list" class="history-list" aria-label="训练历史记录">
-        <li class="history-empty">暂无训练记录。开始您的第一次训练吧！</li>
-      </ul>
-    </section>
+      <!-- Training UI (hidden until scene selected) -->
+      <div id="training-ui" style="display:none">
 
-    <!-- ── Design Notes (collapsed; for developers) ── -->
-    <section class="card" aria-label="开发者说明">
-      <details class="design-notes">
-        <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
-        <pre>
+        <!-- Avatar Panel -->
+        <section class="avatar-panel" aria-label="虚拟数字人">
+          <div id="scene-dots" class="scene-progress" aria-label="训练进度" role="list"></div>
+
+          <div class="avatar-container">
+            <object
+              id="avatar-object"
+              data="assets/avatar.svg"
+              type="image/svg+xml"
+              class="avatar-img"
+              aria-label="虚拟主播头像"
+              title="虚拟主播">
+              <img src="assets/avatar.svg" alt="虚拟主播头像" class="avatar-img" />
+            </object>
+            <div id="avatar-status" class="avatar-status" role="img" aria-label="状态指示灯"></div>
+          </div>
+
+          <div class="subtitle-box" aria-live="polite" aria-label="机器人提示">
+            <span class="label">机器人说：</span>
+            <span id="subtitle-text">请选择一个训练场景开始练习。</span>
+          </div>
+
+          <p id="hint-text" class="hint-text"></p>
+
+          <div class="visualizer-wrap" aria-hidden="true">
+            <canvas id="visualizer" width="300" height="48"></canvas>
+          </div>
+
+          <div id="rec-indicator" class="recording-indicator" role="alert" aria-live="assertive">
+            <div class="rec-dot"></div>
+            <span>录音中</span>
+            <span id="rec-timer" class="recording-timer">0s / 10s</span>
+          </div>
+        </section>
+
+        <!-- Control Buttons -->
+        <div class="btn-group" role="group" aria-label="训练控制按钮">
+          <!-- btn-start-placeholder is a hidden element to satisfy setPhaseUI idle state -->
+          <button id="btn-start-placeholder" class="btn btn-primary" type="button"
+                  style="display:none" aria-hidden="true">占位</button>
+          <button id="btn-play-robot" class="btn btn-outline"  type="button" disabled>🔊 播放机器人</button>
+          <button id="btn-record"     class="btn btn-danger"   type="button" disabled>🎙️ 开始录音</button>
+          <button id="btn-stop"       class="btn btn-neutral"  type="button" disabled style="display:none">⏹ 停止录音</button>
+          <button id="btn-playback"   class="btn btn-neutral"  type="button" disabled style="display:none">▶️ 播放录音</button>
+          <button id="btn-next"       class="btn btn-success"  type="button" disabled style="display:none">提交 →</button>
+          <button id="btn-restart"    class="btn btn-primary"  type="button" disabled style="display:none">🔄 重新选择场景</button>
+        </div>
+
+        <!-- Feedback / Score Panel -->
+        <section id="feedback-panel" class="feedback-panel" aria-label="评分反馈" aria-live="polite">
+          <h2 class="card-title">📊 本轮评分</h2>
+          <div class="score-display">
+            <div id="score-circle" class="score-circle fair" role="img" aria-label="得分">
+              <span id="score-num"   class="score-num">--</span>
+              <span id="score-label" class="score-label">--</span>
+            </div>
+            <div>
+              <p id="feedback-text" class="feedback-text">--</p>
+              <p id="feedback-tip"  class="feedback-tip">--</p>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /training-ui -->
+
+    </section><!-- /section-train -->
+
+    <!-- ════════════════════════════════════════════
+         SECTION: DATA CENTER (#/data)
+         ════════════════════════════════════════════ -->
+    <section id="section-data" role="tabpanel" aria-labelledby="nav-data" hidden>
+
+      <div class="card">
+        <h2 class="card-title">📈 数据中心</h2>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+          <div class="stat-box">
+            <span id="stat-sessions"  class="stat-value">0</span>
+            <span class="stat-label">训练次数</span>
+          </div>
+          <div class="stat-box">
+            <span id="stat-turns"     class="stat-value">0</span>
+            <span class="stat-label">总对话轮数</span>
+          </div>
+          <div class="stat-box">
+            <span id="stat-avg-score" class="stat-value">--</span>
+            <span class="stat-label">平均可懂度分</span>
+          </div>
+        </div>
+
+        <!-- Trend Chart -->
+        <h3 class="section-heading">📉 近 30 天趋势</h3>
+        <div class="trend-chart-wrap">
+          <canvas id="trend-canvas" class="trend-canvas" aria-label="近30天平均分趋势图"></canvas>
+        </div>
+
+        <!-- History List -->
+        <h3 class="section-heading" style="margin-top:1.5rem;">🗂️ 历史记录
+          <span class="data-source-badge" id="data-source-badge"></span>
+        </h3>
+        <ul id="history-list" class="history-list" aria-label="训练历史记录">
+          <li class="history-empty">暂无训练记录。开始您的第一次训练吧！</li>
+        </ul>
+      </div>
+
+    </section><!-- /section-data -->
+
+    <!-- ════════════════════════════════════════════
+         SECTION: SETTINGS (#/settings)
+         ════════════════════════════════════════════ -->
+    <section id="section-settings" role="tabpanel" aria-labelledby="nav-settings" hidden>
+
+      <div class="card">
+        <h2 class="card-title">⚙️ 设置</h2>
+
+        <!-- Font Size -->
+        <div class="settings-group">
+          <h3 class="settings-group-title">字体大小</h3>
+          <div class="font-scale-btns" role="group" aria-label="选择字体大小">
+            <button class="font-scale-btn btn btn-outline" data-scale="1.0" type="button">标准</button>
+            <button class="font-scale-btn btn btn-outline" data-scale="1.1" type="button">较大</button>
+            <button class="font-scale-btn btn btn-outline" data-scale="1.2" type="button">最大</button>
+          </div>
+        </div>
+
+        <!-- High Contrast -->
+        <div class="settings-group">
+          <h3 class="settings-group-title">高对比度模式</h3>
+          <label class="toggle-label" for="high-contrast-toggle">
+            <input id="high-contrast-toggle" type="checkbox" class="toggle-input" />
+            <span class="toggle-track"></span>
+            <span class="toggle-text">开启高对比度（更清晰的界面）</span>
+          </label>
+        </div>
+
+        <!-- Account Status -->
+        <div class="settings-group">
+          <h3 class="settings-group-title">账户与同步</h3>
+          <div class="settings-status-row">
+            <span class="settings-status-label">登录状态：</span>
+            <span id="settings-auth-status" class="settings-status-value">--</span>
+          </div>
+          <div class="settings-status-row">
+            <span class="settings-status-label">当前账户：</span>
+            <span id="settings-auth-email" class="settings-status-value">--</span>
+          </div>
+          <div class="settings-status-row">
+            <span class="settings-status-label">云端同步：</span>
+            <span id="settings-sync-status" class="settings-status-value">--</span>
+          </div>
+          <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <button id="btn-auth-open-settings" class="btn btn-outline" type="button">
+              👤 登录 / 注册
+            </button>
+          </div>
+        </div>
+
+        <!-- Developer Notes (collapsible) -->
+        <div class="settings-group">
+          <details class="design-notes">
+            <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
+            <pre>
 架构概览（当前为纯前端 Mock 实现）
 ======================================
 
-当前 Mock 函数（app.js）         →  真实 FastAPI 端点（替换位置）
+当前 Mock 函数 (train.js)       →  真实 FastAPI 端点（替换位置）
 ─────────────────────────────────────────────────────────────────
 MOCK_TTS(text)                   →  POST /api/tts
                                        body: { text: string }
@@ -203,55 +285,50 @@ MOCK_SCORE(text, conf, kw, dur)  →  POST /api/score
 统一返回格式：
 { "code": 200, "msg": "ok", "data": { ... } }
 
-替换步骤：
-1. 在 app.js 中找到三个 /* API_HOOK */ 注释的函数。
-2. 将函数体替换为 fetch('/api/...', {...}) 调用。
-3. 处理错误码（401 未授权 / 429 限流 / 500 服务异常）。
-4. 在后端：使用 FastAPI + Pydantic 定义请求/响应模型。
-
-口型同步原理：
-─────────────
-1. HTMLAudioElement 连接到 Web Audio API AnalyserNode。
-2. 每帧读取 TimeDomain 数据 → 计算 RMS 均方根振幅。
-3. 低通滤波（指数平滑系数 0.25）消除抖动。
-4. 将 0..0.3 RMS 映射到 0..1 张嘴比例。
-5. 设置 SVG #mouth-open ellipse 的 ry 属性（0..14px）。
-
-如需更高精度口型同步：
-• TTS 端点返回 viseme_timeline: [{time_ms, viseme_id}, ...]
-• 前端按时间轴切换 SVG 口型状态（需在 SVG 中添加多组口型图层）
+场景脚本：
+  编辑 scenes.json 即可增删改场景和对话轮次，无需修改 JS。
+  字段：id, name, icon, turns[].robot_text / hint / keywords
 
 本地运行：
-─────────
   python3 -m http.server 8080
-  # 访问 http://localhost:8080/web-prototype/
+  # 访问 http://localhost:8080/
+            </pre>
+          </details>
+        </div>
 
-浏览器要求：
-  Chrome 66+ / Firefox 60+ / Safari 14.1+ / Edge 79+
-  需要 HTTPS 或 localhost 才能访问麦克风权限。
+      </div><!-- /card -->
 
-替换 Avatar（虚拟形象）：
-  1. 准备 200×260 SVG，在口部添加 id="mouth-open" 的 ellipse 元素。
-  2. 替换 assets/avatar.svg 文件。
-  3. ry 属性会由 JS 动态设置（0..14）。
-
-替换示例音频：
-  1. 将 WAV/MP3 文件放入 assets/ 目录。
-  2. 修改 app.js 顶部的 SAMPLE_AUDIO_URL 常量。
-  3. 也可在 app.js 的 MOCK_TTS() 中指定不同音频 URL。
-
-数据存储：
-  所有训练记录存储在浏览器 localStorage (key: rehab_sessions_v1)。
-  格式：Session[] → Turn[] 嵌套结构。
-  接入后端后可改为 POST /api/session/save 同步到数据库。
-        </pre>
-      </details>
-    </section>
+    </section><!-- /section-settings -->
 
   </div><!-- /app-wrapper -->
 
+  <!-- ── Session Details Modal ── -->
+  <div id="session-modal" class="session-modal-overlay" role="dialog" aria-modal="true"
+       aria-labelledby="session-modal-title" style="display:none">
+    <div class="session-modal-box">
+      <button id="session-modal-close" class="auth-modal-close" type="button" aria-label="关闭">✕</button>
+      <h2 id="session-modal-title" class="auth-modal-title">对话详情</h2>
+      <div id="session-modal-content" class="session-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Scripts (load order matters) ── -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabaseClient.js"></script>
   <script src="app.js"></script>
+  <script src="train.js"></script>
+  <script src="dataCenter.js"></script>
+  <script src="settings.js"></script>
+
+  <!-- Tab nav click handler (after all modules loaded) -->
+  <script>
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".tab-nav-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        APP.navigateTo(btn.getAttribute("data-tab"));
+      });
+    });
+  });
+  </script>
 </body>
 </html>
