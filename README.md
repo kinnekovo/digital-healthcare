@@ -174,3 +174,72 @@ See the **开发者说明** collapsible section on the app page for the full int
 - All audio processing is client-side. No data leaves the browser in this prototype.  
 - `localStorage` data is scoped to the origin (domain + port). Clear it with `localStorage.removeItem("rehab_sessions_v1")`.  
 - When integrating real ASR/TTS services, ensure the backend handles audio data under your applicable privacy regulations (e.g., encrypt at rest, enforce retention limits).
+
+---
+
+## Supabase Auth + Cloud Sync
+
+This app supports optional **Supabase Auth** (email + password with email verification) and cloud sync of training sessions.
+
+### Project configuration
+
+| Setting | Value |
+|---|---|
+| Project URL | `https://mrxubtsdkfotyjuzwjtj.supabase.co` |
+| Anon public key | See `supabaseClient.js` (safe for front-end) |
+
+> **⚠️ Never expose the `service_role` key** in any client-side file, environment variable, or version control. It bypasses Row Level Security and grants unrestricted database access.
+
+### Supabase dashboard settings required
+
+1. **Authentication → URL Configuration**  
+   - **Site URL**: `https://kinnekovo.github.io/digital-healthcare/`  
+   - **Redirect URLs** (Additional): `https://kinnekovo.github.io/digital-healthcare/`  
+   These ensure the email-verification link redirects back to your GitHub Pages site.
+
+2. **Authentication → Email Templates** (optional)  
+   Customize the verification email to match the app language (Chinese).
+
+3. **Email verification** must remain **enabled** (default). Users must verify their email before they can log in.
+
+### Database schema (already created)
+
+```sql
+-- sessions table
+create table public.sessions (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  scene_id   text not null,
+  started_at timestamptz not null default now(),
+  ended_at   timestamptz,
+  avg_score  numeric,
+  created_at timestamptz not null default now()
+);
+alter table public.sessions enable row level security;
+-- RLS: users can only access their own rows
+create policy "sessions_select_own" on public.sessions for select using (auth.uid() = user_id);
+create policy "sessions_insert_own" on public.sessions for insert with check (auth.uid() = user_id);
+
+-- turns table
+create table public.turns (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  session_id   uuid not null references public.sessions(id) on delete cascade,
+  robot_text   text not null,
+  recording_ms integer not null default 0,
+  score        integer not null,
+  label        text not null,
+  created_at   timestamptz not null default now()
+);
+alter table public.turns enable row level security;
+create policy "turns_select_own" on public.turns for select using (auth.uid() = user_id);
+create policy "turns_insert_own" on public.turns for insert with check (auth.uid() = user_id);
+```
+
+### How cloud sync works
+
+1. **Register** → user receives a verification email → clicks link → redirected back to the site.  
+2. **Login** → session restored; subsequent training runs are automatically synced to Supabase.  
+3. **Sync Now** button → syncs any local sessions that haven't been uploaded yet (append-only; nothing is deleted or overwritten remotely).  
+4. **Data Centre** → shows cloud sessions when logged in; falls back to `localStorage` if offline or not logged in.  
+5. `localStorage` is always kept as a local backup. A `cloud_synced: true` marker is added to each session after a successful upload.
