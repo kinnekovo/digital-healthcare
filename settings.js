@@ -14,6 +14,8 @@ window.SETTINGS = (function () {
   var DEFAULT_PREFS = {
     fontScale:     1.0,   // 1.0 | 1.1 | 1.2
     highContrast:  false,
+    ttsEnabled:    true,  // Web Speech Synthesis on/off
+    ttsRate:       1.0,   // 0.9 | 1.0 | 1.1
   };
 
   /* ── Load / Save ── */
@@ -59,6 +61,26 @@ window.SETTINGS = (function () {
     // High contrast toggle
     var toggle = document.getElementById("high-contrast-toggle");
     if (toggle) toggle.checked = !!prefs.highContrast;
+
+    // TTS enabled toggle
+    var ttsToggle = document.getElementById("tts-enabled-toggle");
+    if (ttsToggle) ttsToggle.checked = prefs.ttsEnabled !== false;
+
+    // TTS rate buttons
+    var ttsRateBtns = document.querySelectorAll(".tts-rate-btn");
+    ttsRateBtns.forEach(function (btn) {
+      var rate = parseFloat(btn.getAttribute("data-rate"));
+      btn.classList.toggle("active", rate === (prefs.ttsRate || 1.0));
+    });
+
+    // Hide TTS controls if speechSynthesis not supported
+    var ttsGroup = document.getElementById("settings-tts-group");
+    if (ttsGroup) {
+      if (typeof window.TTS !== "undefined" && !TTS.isSupported()) {
+        ttsGroup.querySelector(".tts-unsupported-note").style.display = "";
+        ttsGroup.querySelector(".tts-controls").style.display = "none";
+      }
+    }
   }
 
   function renderAccountStatus() {
@@ -109,6 +131,29 @@ window.SETTINGS = (function () {
         applyPrefs(prefs);
       });
     }
+
+    // TTS enabled toggle
+    var ttsToggle = document.getElementById("tts-enabled-toggle");
+    if (ttsToggle) {
+      ttsToggle.addEventListener("change", function () {
+        var prefs = loadPrefs();
+        prefs.ttsEnabled = ttsToggle.checked;
+        savePrefs(prefs);
+      });
+    }
+
+    // TTS rate buttons
+    var ttsRateBtns = document.querySelectorAll(".tts-rate-btn");
+    ttsRateBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var rate = parseFloat(btn.getAttribute("data-rate"));
+        if (!rate) return;
+        var prefs = loadPrefs();
+        prefs.ttsRate = rate;
+        savePrefs(prefs);
+        renderUI();
+      });
+    });
   }
 
   /* ── Init ── */
