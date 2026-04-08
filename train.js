@@ -309,11 +309,6 @@ window.TRAIN = (function () {
     box.innerHTML = html;
   }
 
-  function updateConfirmBtn() {
-    // This is a no-op: confirm button is managed directly in handleASREnd() and showASRPanel().
-    // Kept for backward compatibility with any external callers.
-  }
-
   function showASRFallback(msg) {
     var fallback = document.getElementById("asr-fallback");
     var errEl    = document.getElementById("asr-error-msg");
