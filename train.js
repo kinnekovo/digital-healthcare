@@ -94,6 +94,7 @@ window.TRAIN = (function () {
 
   var AMPLITUDE_SMOOTH   = 0.25;
   var DEFAULT_ASR_CONF   = 0.75;
+  var DEFAULT_DURATION_MS = 3000;   // fallback duration when no ASR timing available
 
   /* ── Web Speech API ── */
 
@@ -124,9 +125,9 @@ window.TRAIN = (function () {
       asrRecognition.maxAlternatives = 1;
 
       asrRecognition.onresult = function (event) {
-        asrFinalText   = "";
+        // Accumulate finals; rebuild interim from the changed window only
         asrInterimText = "";
-        for (var i = 0; i < event.results.length; i++) {
+        for (var i = event.resultIndex; i < event.results.length; i++) {
           var res = event.results[i];
           if (res.isFinal) {
             asrFinalText += res[0].transcript;
@@ -307,6 +308,7 @@ window.TRAIN = (function () {
     if (!btn) return;
     var canConfirm = (state.asrText.trim().length > 0) || (state.selectedKeywords.length > 0);
     btn.disabled = !canConfirm;
+    btn.setAttribute("aria-disabled", !canConfirm ? "true" : "false");
   }
 
   function showASRFallback(msg) {
@@ -461,11 +463,12 @@ window.TRAIN = (function () {
     var hits = keywords.filter(function (k) { return asrLower.includes(k); }).length;
     var hit  = keywords.length > 0 ? hits / keywords.length : 0.5;
     var chars = safeText.length || 1;
-    var secs  = (durationMs || 3000) / 1000;
+    var secs  = (durationMs || DEFAULT_DURATION_MS) / 1000;
     var cps   = chars / secs;
     var pace  = (cps >= 0.5 && cps <= 4) ? 1.0 : (cps >= 0.3 ? 0.6 : 0.3);
     var rawScore = 100 * (0.5 * confidence + 0.4 * hit + 0.1 * pace);
-    var jitter   = (Math.random() - 0.5) * 10;
+    // Non-cryptographic jitter for demo variability — intentionally uses Math.random()
+    var jitter   = (Math.random() - 0.5) * 10; // ±5 points of demo noise
     var score    = Math.round(Math.max(0, Math.min(100, rawScore + jitter)));
     var label, feedback, tip;
     if (score >= 80) {
@@ -602,7 +605,7 @@ window.TRAIN = (function () {
       state.asrText,
       confidence,
       keywords,
-      state.asrDurationMs || 3000
+      state.asrDurationMs || DEFAULT_DURATION_MS
     );
 
     var turnRecord = {
