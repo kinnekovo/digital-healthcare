@@ -1,12 +1,11 @@
 /**
- * train.js — Scene Loading, Scene Selection, Training Loop, ASR-only Turn Interaction
+ * train.js — Scene Loading, Scene Selection, Training Loop, ASR Recording Flow
  *
- * Implements "Plan A" ASR-only training using Web Speech API.
- * - 开始说话  → recognition.start()  (user gesture required)
- * - 我说完了  → recognition.stop()
- * - 确认并评分 → scoring with final transcript or selected keywords
- * - On error / empty → fallback panel with 再说一次 + keyword multi-select chips
- * - If SpeechRecognition not supported → auto-enable keyword-only mode
+ * Implements ASR-only training using Web Speech API (方案1 — Recording Flow).
+ * - 开始录音  → recognition.start()  (user gesture required)
+ * - 停止录音  → recognition.stop() + show "识别中..." status
+ * - On recognition end → display transcript; 确认并评分 always enabled
+ * - On error / empty → simple error message + 再试一次 button (no keyword fallback)
  *
  * Depends on: app.js (window.APP must be defined first)
  * Exposes:    window.TRAIN
@@ -82,12 +81,11 @@ window.TRAIN = (function () {
     clientSessionId: null,
     sessionTurns: [],
     // ASR fields (per-turn, reset before each turn)
-    asrText: "",              // final transcript or keyword-derived string
-    asrSource: "none",        // "speech" | "keyword" | "none"
+    asrText: "",              // final transcript
+    asrSource: "none",        // "speech" | "none"
     asrConfidence: 0.75,
     asrDurationMs: 0,
     asrError: "",             // error code from SpeechRecognition (local only)
-    selectedKeywords: [],     // keywords chosen via fallback chips
   };
 
   /* ── Constants ── */
@@ -180,6 +178,10 @@ window.TRAIN = (function () {
     if (startBtn) startBtn.disabled = false;
     if (stopBtn)  stopBtn.disabled  = true;
 
+    // Always enable confirm so user can proceed even with empty result
+    var confirmBtn = document.getElementById("btn-asr-confirm");
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.setAttribute("aria-disabled", "false"); }
+
     var text = asrFinalText.trim();
 
     if (text) {
@@ -188,7 +190,7 @@ window.TRAIN = (function () {
       state.asrSource     = "speech";
       state.asrConfidence = asrBestConf > 0 ? asrBestConf : DEFAULT_ASR_CONF;
       setASRStatus("final");
-      updateConfirmBtn();
+      hideASRFallback();
     } else {
       // Failure or no speech detected
       state.asrText       = "";
@@ -196,7 +198,7 @@ window.TRAIN = (function () {
       state.asrConfidence = DEFAULT_ASR_CONF;
       var errMsg = state.asrError
         ? getASRErrorMsg(state.asrError)
-        : "没有识别到内容，请重试或选择下方关键词。";
+        : "没有识别到内容，请点击【再试一次】重新录音。";
       setASRStatus("error");
       showASRFallback(errMsg);
     }
@@ -207,12 +209,12 @@ window.TRAIN = (function () {
       "not-allowed":           "⚠️ 麦克风权限被拒绝，请在浏览器设置中允许麦克风后刷新页面。",
       "audio-capture":         "⚠️ 无法访问麦克风，请检查设备连接。",
       "network":               "⚠️ 语音识别服务暂时不可用，请检查网络后重试。",
-      "no-speech":             "没有检测到语音，请重试或选择下方关键词。",
+      "no-speech":             "没有检测到语音，请点击【再试一次】重新录音。",
       "aborted":               "识别被中断，请重试。",
       "language-not-supported":"⚠️ 当前语言不受支持。",
       "failed-to-start":       "⚠️ 语音识别启动失败，请刷新页面后重试。",
     };
-    return msgs[error] || ("语音识别出错（" + error + "），请重试或选择下方关键词。");
+    return msgs[error] || ("语音识别出错（" + error + "），请点击【再试一次】重新录音。");
   }
 
   /* ── ASR Panel ── */
@@ -227,26 +229,29 @@ window.TRAIN = (function () {
     state.asrError        = "";
     state.asrConfidence   = DEFAULT_ASR_CONF;
     state.asrDurationMs   = 0;
-    state.selectedKeywords = [];
     asrFinalText   = "";
     asrInterimText = "";
     asrHandled     = false;
 
     updateTranscriptDisplay("", "");
-    updateConfirmBtn();
+
+    // Disable confirm until recognition completes
+    var confirmBtn = document.getElementById("btn-asr-confirm");
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.setAttribute("aria-disabled", "true"); }
 
     var startBtn = document.getElementById("btn-asr-start");
     var stopBtn  = document.getElementById("btn-asr-stop");
 
     if (!ASR_SUPPORTED) {
-      // Auto-enable keyword fallback mode
       if (startBtn) startBtn.disabled = true;
       if (stopBtn)  stopBtn.disabled  = true;
       setASRStatus("error");
-      showASRFallback("当前浏览器不支持语音识别，请使用关键词继续训练。");
+      showASRFallback("当前浏览器不支持语音识别（建议使用桌面版 Chrome）。");
+      // Still enable confirm so user can proceed (will score with empty text)
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.setAttribute("aria-disabled", "false"); }
       if (!asrUnsupportedBannerShown) {
         APP.showBanner("warning",
-          "⚠️ 当前浏览器不支持语音识别（建议使用桌面版 Chrome）。已自动切换到关键词选择模式。");
+          "⚠️ 当前浏览器不支持语音识别（建议使用桌面版 Chrome）。");
         asrUnsupportedBannerShown = true;
       }
     } else {
@@ -271,7 +276,7 @@ window.TRAIN = (function () {
   }
 
   function setASRStatus(status) {
-    // status: "idle" | "listening" | "final" | "error"
+    // status: "idle" | "listening" | "recognizing" | "final" | "error"
     var dot  = document.getElementById("asr-status-dot");
     var text = document.getElementById("asr-status-text");
     if (!dot || !text) return;
@@ -280,10 +285,11 @@ window.TRAIN = (function () {
     text.className = "asr-status-text " + status;
 
     var labels = {
-      idle:      "等待开始…",
-      listening: "🎙️ 正在识别，请说话…",
-      final:     "✅ 识别完成，请确认",
-      error:     "识别未成功",
+      idle:        "等待开始…",
+      listening:   "🎙️ 正在录音，请说话…",
+      recognizing: "⏳ 识别中…",
+      final:       "✅ 识别完成，请确认",
+      error:       "识别未成功",
     };
     text.textContent = labels[status] || "";
   }
@@ -303,82 +309,17 @@ window.TRAIN = (function () {
     box.innerHTML = html;
   }
 
-  function updateConfirmBtn() {
-    var btn = document.getElementById("btn-asr-confirm");
-    if (!btn) return;
-    var canConfirm = (state.asrText.trim().length > 0) || (state.selectedKeywords.length > 0);
-    btn.disabled = !canConfirm;
-    btn.setAttribute("aria-disabled", !canConfirm ? "true" : "false");
-  }
-
   function showASRFallback(msg) {
     var fallback = document.getElementById("asr-fallback");
     var errEl    = document.getElementById("asr-error-msg");
     if (!fallback) return;
     if (errEl) errEl.textContent = msg || "";
-    renderKeywordChips();
     fallback.style.display = "";
   }
 
   function hideASRFallback() {
     var fallback = document.getElementById("asr-fallback");
     if (fallback) fallback.style.display = "none";
-  }
-
-  function renderKeywordChips() {
-    var container = document.getElementById("asr-keyword-chips");
-    if (!container) return;
-    container.innerHTML = "";
-
-    // Use turn-level keywords; fall back to scene-level if missing
-    var keywords = (state.currentTurn && state.currentTurn.keywords) ||
-                   (state.scene && state.scene.keywords) || [];
-
-    if (keywords.length === 0) {
-      container.innerHTML = '<span class="asr-kw-empty">（此轮无关键词）</span>';
-      return;
-    }
-
-    keywords.forEach(function (kw) {
-      var chip = document.createElement("button");
-      chip.type = "button";
-      var isSelected = state.selectedKeywords.indexOf(kw) >= 0;
-      chip.className = "asr-keyword-chip" + (isSelected ? " selected" : "");
-      chip.textContent = kw;
-      chip.setAttribute("aria-pressed", isSelected ? "true" : "false");
-      chip.addEventListener("click", function () { toggleKeyword(kw, chip); });
-      container.appendChild(chip);
-    });
-  }
-
-  function toggleKeyword(kw, chipEl) {
-    var idx = state.selectedKeywords.indexOf(kw);
-    if (idx >= 0) {
-      state.selectedKeywords.splice(idx, 1);
-      if (chipEl) {
-        chipEl.classList.remove("selected");
-        chipEl.setAttribute("aria-pressed", "false");
-      }
-    } else {
-      state.selectedKeywords.push(kw);
-      if (chipEl) {
-        chipEl.classList.add("selected");
-        chipEl.setAttribute("aria-pressed", "true");
-      }
-    }
-
-    if (state.selectedKeywords.length > 0) {
-      state.asrText       = state.selectedKeywords.join(" ");
-      state.asrSource     = "keyword";
-      state.asrConfidence = DEFAULT_ASR_CONF;
-    } else {
-      state.asrText   = "";
-      state.asrSource = "none";
-    }
-
-    // Show derived keyword text in transcript box
-    updateTranscriptDisplay("", state.asrSource === "keyword" ? state.asrText : "");
-    updateConfirmBtn();
   }
 
   /* ── Web Audio / Lip-Sync ── */
@@ -550,7 +491,6 @@ window.TRAIN = (function () {
     state.asrConfidence    = DEFAULT_ASR_CONF;
     state.asrDurationMs    = 0;
     state.asrError         = "";
-    state.selectedKeywords = [];
 
     var selectDiv  = document.getElementById("scene-select");
     var trainingUI = document.getElementById("training-ui");
@@ -588,7 +528,7 @@ window.TRAIN = (function () {
     state.phase = "asr-idle";
     setPhaseUI("asr-idle");
     showASRPanel();
-    APP.showBanner("info", "🎙️ 请点击【开始说话】后说出您的回答。");
+    APP.showBanner("info", "🎙️ 请点击【开始录音】后说出您的回答。");
   }
 
   async function doScoring() {
@@ -609,18 +549,17 @@ window.TRAIN = (function () {
     );
 
     var turnRecord = {
-      scene_id:          state.scene.id,
-      scene_name:        state.scene.name,
-      turn_index:        state.turnIndex,
-      robot_text:        turn.robot_text,
-      asr_text:          state.asrText,
-      asr_source:        state.asrSource,
-      selected_keywords: state.asrSource === "keyword" ? state.selectedKeywords.slice() : [],
-      confidence:        confidence,
-      score:             scoreResult.score,
-      label:             scoreResult.label,
-      duration_ms:       state.asrDurationMs,
-      timestamp:         new Date().toISOString(),
+      scene_id:    state.scene.id,
+      scene_name:  state.scene.name,
+      turn_index:  state.turnIndex,
+      robot_text:  turn.robot_text,
+      asr_text:    state.asrText,
+      asr_source:  state.asrSource,
+      confidence:  confidence,
+      score:       scoreResult.score,
+      label:       scoreResult.label,
+      duration_ms: state.asrDurationMs,
+      timestamp:   new Date().toISOString(),
     };
     if (state.asrError) turnRecord.asr_error = state.asrError;
     state.sessionTurns.push(turnRecord);
@@ -800,13 +739,14 @@ window.TRAIN = (function () {
       await advanceTurn();
     });
 
-    // Start ASR — MUST be a direct user gesture for Chrome microphone permission
+    // Start recording + ASR — MUST be a direct user gesture for Chrome microphone permission
     on("btn-asr-start", "click", function () {
       if (!ASR_SUPPORTED) return;
       // Reset per-recognition state
       state.asrError = "";
       asrFinalText   = "";
       asrInterimText = "";
+      asrHandled     = false;
 
       hideASRFallback();
       updateTranscriptDisplay("", "");
@@ -814,43 +754,49 @@ window.TRAIN = (function () {
 
       var startBtn = document.getElementById("btn-asr-start");
       var stopBtn  = document.getElementById("btn-asr-stop");
-      if (startBtn) startBtn.disabled = true;
-      if (stopBtn)  stopBtn.disabled  = false;
+      var confirmBtn = document.getElementById("btn-asr-confirm");
+      if (startBtn)   startBtn.disabled   = true;
+      if (stopBtn)    stopBtn.disabled    = false;
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.setAttribute("aria-disabled", "true"); }
 
-      updateConfirmBtn();
       startWebSpeech();
     });
 
-    // Stop ASR — user indicates they finished speaking
+    // Stop recording — show "识别中..." and wait for recognition result
     on("btn-asr-stop", "click", function () {
+      var startBtn = document.getElementById("btn-asr-start");
+      var stopBtn  = document.getElementById("btn-asr-stop");
+      if (startBtn) startBtn.disabled = true;
+      if (stopBtn)  stopBtn.disabled  = true;
+      setASRStatus("recognizing");
       stopWebSpeech();
       // onend fires asynchronously; handleASREnd() handles result
     });
 
-    // Confirm transcript / keyword selection and proceed to scoring
+    // Confirm transcript and proceed to scoring
     on("btn-asr-confirm", "click", async function () {
       await doScoring();
     });
 
-    // Retry: reset panel to idle (re-enable 开始说话)
+    // Retry: reset panel to idle (re-enable 开始录音)
     on("btn-asr-retry", "click", function () {
-      state.asrError         = "";
-      state.asrText          = "";
-      state.asrSource        = "none";
-      state.selectedKeywords = [];
-      asrFinalText           = "";
-      asrInterimText         = "";
-      asrHandled             = false;
+      state.asrError  = "";
+      state.asrText   = "";
+      state.asrSource = "none";
+      asrFinalText    = "";
+      asrInterimText  = "";
+      asrHandled      = false;
 
       hideASRFallback();
       updateTranscriptDisplay("", "");
       setASRStatus("idle");
-      updateConfirmBtn();
 
-      var startBtn = document.getElementById("btn-asr-start");
-      var stopBtn  = document.getElementById("btn-asr-stop");
-      if (startBtn) startBtn.disabled = !ASR_SUPPORTED;
-      if (stopBtn)  stopBtn.disabled  = true;
+      var startBtn   = document.getElementById("btn-asr-start");
+      var stopBtn    = document.getElementById("btn-asr-stop");
+      var confirmBtn = document.getElementById("btn-asr-confirm");
+      if (startBtn)   startBtn.disabled   = !ASR_SUPPORTED;
+      if (stopBtn)    stopBtn.disabled    = true;
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.setAttribute("aria-disabled", "true"); }
     });
 
     // Return to scene selection
