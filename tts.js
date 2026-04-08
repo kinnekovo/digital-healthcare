@@ -75,10 +75,47 @@ window.TTS = (function () {
     return TTS_SUPPORTED;
   }
 
+  /**
+   * Returns true if TTS is supported AND enabled in current prefs.
+   */
+  function isEnabled() {
+    if (!TTS_SUPPORTED) return false;
+    return loadTTSPrefs().ttsEnabled;
+  }
+
+  /**
+   * Like speak(), but returns a Promise that resolves when the utterance ends
+   * (or immediately if TTS is unsupported / disabled / text is empty).
+   * Useful when the caller needs to await the end of speech (e.g. advanceTurn).
+   * @param {string} text
+   * @returns {Promise<void>}
+   */
+  function speakAsync(text) {
+    return new Promise(function (resolve) {
+      if (!TTS_SUPPORTED) { resolve(); return; }
+      var prefs = loadTTSPrefs();
+      if (!prefs.ttsEnabled || !text) { resolve(); return; }
+      try {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang  = "zh-CN";
+        u.rate  = prefs.ttsRate;
+        u.onend   = function () { resolve(); };
+        u.onerror = function () { resolve(); };
+        window.speechSynthesis.speak(u);
+      } catch (err) {
+        console.warn("[TTS] speakAsync() failed:", err);
+        resolve();
+      }
+    });
+  }
+
   return {
     speak:       speak,
+    speakAsync:  speakAsync,
     stop:        stop,
     isSupported: isSupported,
+    isEnabled:   isEnabled,
   };
 
 })();
