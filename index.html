@@ -155,20 +155,15 @@
 
           <!-- Main ASR control buttons -->
           <div class="asr-btn-row">
-            <button id="btn-asr-start"   class="btn btn-primary asr-action-btn" type="button">🎙️ 开始说话</button>
-            <button id="btn-asr-stop"    class="btn btn-neutral asr-action-btn" type="button" disabled>⏹ 我说完了</button>
+            <button id="btn-asr-start"   class="btn btn-primary asr-action-btn" type="button">🎙️ 开始录音</button>
+            <button id="btn-asr-stop"    class="btn btn-neutral asr-action-btn" type="button" disabled>⏹ 停止录音</button>
             <button id="btn-asr-confirm" class="btn btn-success asr-action-btn" type="button" disabled>✓ 确认并评分</button>
           </div>
 
           <!-- Fallback section: shown on error / empty / unsupported -->
           <div id="asr-fallback" class="asr-fallback" style="display:none">
             <p id="asr-error-msg" class="asr-error-msg"></p>
-            <button id="btn-asr-retry" class="btn btn-outline asr-action-btn" type="button">🔄 再说一次</button>
-            <div class="asr-kw-section">
-              <p class="asr-kw-label">或选择您说到的关键词（可多选）：</p>
-              <div id="asr-keyword-chips" class="asr-keyword-chips"
-                   role="group" aria-label="关键词多选"></div>
-            </div>
+            <button id="btn-asr-retry" class="btn btn-outline asr-action-btn asr-retry-btn" type="button">🔄 再试一次</button>
           </div>
 
         </div><!-- /asr-panel -->
@@ -288,7 +283,7 @@
           <details class="design-notes">
             <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
             <pre>
-架构概览（ASR-only 训练：Web Speech API + 关键词回退 + Mock TTS/Score）
+架构概览（录音流 ASR：Web Speech API + 简洁失败重试 + Mock TTS/Score）
 =========================================================================
 
 训练流程（train.js）                 →  真实 FastAPI 端点（替换位置）
@@ -309,14 +304,15 @@ MOCK_SCORE(text, conf, kw, dur)      →  POST /api/score
                                                    expected_keywords, duration_ms }
                                            resp: { score, label, feedback, tip }
 
-ASR 说明（Plan A — ASR-only）：
+ASR 说明（方案1 — 录音流）：
   桌面 Chrome 使用 SpeechRecognition（lang: zh-CN, continuous: false）。
-  用户手势触发"开始说话" → recognition.start()。
-  "我说完了" → recognition.stop()；onend 处理结果。
-  失败/空结果 → 显示回退面板（再说一次 + 关键词多选）。
-  不支持时自动显示关键词模式，无手动文字输入。
+  用户手势触发"开始录音" → recognition.start()。
+  "停止录音" → recognition.stop()；显示"识别中…"；onend 处理结果。
+  识别成功 → 显示文字，启用"确认并评分"。
+  失败/空结果 → 显示错误信息 + "再试一次"大按钮。
+  不支持时自动启用"确认并评分"（空文本评分）。
 
-每轮保存字段：asr_text, asr_source, selected_keywords, asr_error。
+每轮保存字段：asr_text, asr_source (speech|none), asr_error。
 
 统一返回格式：
 { "code": 200, "msg": "ok", "data": { ... } }

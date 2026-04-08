@@ -1021,6 +1021,11 @@ body {
   animation: blink 0.8s infinite;
 }
 
+.asr-status-dot.recognizing {
+  background: var(--color-primary);
+  animation: blink 1.2s infinite;
+}
+
 .asr-status-dot.final {
   background: var(--color-success);
 }
@@ -1036,9 +1041,10 @@ body {
   transition: color var(--transition);
 }
 
-.asr-status-text.listening { color: var(--color-danger); }
-.asr-status-text.final     { color: var(--color-success); }
-.asr-status-text.error     { color: var(--color-warning); }
+.asr-status-text.listening    { color: var(--color-danger); }
+.asr-status-text.recognizing  { color: var(--color-primary); }
+.asr-status-text.final        { color: var(--color-success); }
+.asr-status-text.error        { color: var(--color-warning); }
 
 /* Read-only transcript display */
 .asr-transcript-box {
@@ -1096,59 +1102,11 @@ body {
   line-height: 1.4;
 }
 
-/* Keyword multi-select section */
-.asr-kw-section {
-  margin-top: 1rem;
-}
-
-.asr-kw-label {
-  font-size: var(--font-base);
-  color: var(--color-text-muted);
-  margin-bottom: 0.65rem;
-}
-
-.asr-keyword-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.asr-keyword-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1.25rem;
-  font-size: var(--font-base);
+.asr-retry-btn {
+  width: 100%;
+  min-height: 64px;
+  font-size: var(--font-lg);
   font-weight: 700;
-  background: var(--color-bg);
-  color: var(--color-text);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  min-height: 52px;
-  transition: all var(--transition);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.asr-keyword-chip:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.asr-keyword-chip.selected {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
-}
-
-.asr-keyword-chip:focus {
-  outline: 2px solid var(--color-primary-dark);
-  outline-offset: 2px;
-}
-
-.asr-kw-empty {
-  color: var(--color-text-muted);
-  font-style: italic;
 }
 
 /* High contrast overrides for ASR panel */
@@ -1160,22 +1118,6 @@ body.high-contrast .asr-transcript-box {
   background: #0F172A;
   color: var(--color-text);
   border-color: var(--color-border);
-}
-
-body.high-contrast .asr-keyword-chip {
-  background: #1E293B;
-  color: var(--color-text);
-  border-color: var(--color-border);
-}
-
-body.high-contrast .asr-keyword-chip:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-body.high-contrast .asr-keyword-chip.selected {
-  background: var(--color-primary);
-  color: #000;
 }
 
 /* ASR in turns table */
