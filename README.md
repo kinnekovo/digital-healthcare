@@ -104,6 +104,7 @@ npx serve .
 | MediaDevices.getUserMedia   | All modern browsers on HTTPS/localhost       |
 | `crypto.randomUUID`         | Chrome 92, Firefox 95, Safari 15.4           |
 | Canvas 2D (trend chart)     | All modern browsers                          |
+| Web Speech API (ASR)        | Chrome 33+, Edge 79+ (full); Safari 14.1 (limited); **Firefox: not supported** |
 
 ---
 
@@ -114,10 +115,71 @@ npx serve .
 3. For each turn in the scene:
    - Robot "speaks" (mock TTS → sample audio + lip-sync animation)
    - User records voice (MediaRecorder, max 10 s)
-   - Mock ASR → recognised text + confidence
-   - Mock scoring → intelligibility score (0-100) + label + feedback
+   - **Web Speech API** recognises speech in real time (zh-CN, desktop Chrome)
+   - Transcript panel appears — user can review, edit, or add keywords
+   - User confirms → mock intelligibility scoring → score (0-100) + label + feedback
 4. After the last turn, session is saved to `localStorage` and async cloud sync starts.
 5. App automatically navigates to **#/data** and highlights the new session row.
+
+---
+
+## ASR — Web Speech API Integration
+
+### How it works
+
+The training loop integrates the browser's native **Web Speech API** (`SpeechRecognition` / `webkitSpeechRecognition`) alongside `MediaRecorder`:
+
+1. When the user clicks **开始录音**, both `MediaRecorder` and `SpeechRecognition` start simultaneously.
+2. Real-time interim results stream into the ASR transcript panel.
+3. When the user clicks **停止录音** (or the 10-second limit is reached), both stop.
+4. The **ASR Transcript Panel** appears with the recognised text in an editable textarea.
+5. **Keyword quick-pick buttons** (from the current turn's `keywords` list) let the user tap common words to append or correct the text — especially helpful for users with limited typing ability.
+6. The user confirms (or edits first) and clicks **✓ 确认并评分** to proceed to scoring.
+
+### `asr_source` values stored per turn
+
+| Value         | Meaning                                                    |
+|---------------|------------------------------------------------------------|
+| `web_speech`  | Text came from the Web Speech API without manual changes   |
+| `manual`      | User edited the textarea or used keyword buttons           |
+| `fallback`    | Browser does not support Web Speech API — user typed manually |
+| `mock`        | Fallback used inside the dev/test mock path                |
+
+### Manual-input fallback
+
+If `SpeechRecognition` is not available (Firefox, Safari < 14.1, non-Chrome mobile), the panel still appears with an empty textarea so the user can type the answer manually. Training always proceeds regardless of ASR support.
+
+### Local storage
+
+Each turn record stored in `localStorage` (key `rehab_sessions_v1`) includes:
+
+```json
+{ "asr_text": "我想买两斤白菜", "asr_source": "web_speech" }
+```
+
+These fields are **local-only** at this stage — the Supabase `turns` table schema is unchanged.
+
+### Known limitations
+
+| Limitation | Notes |
+|---|---|
+| Chrome-only | `webkitSpeechRecognition` is only fully supported in Chrome/Edge. Firefox and Safari show the manual-input fallback. |
+| Requires HTTPS or localhost | The browser will block `SpeechRecognition` on `file://` pages. |
+| External audio processing | Each call to the Web Speech API sends audio to Google's servers. Do not use for sensitive data in production. |
+| Accuracy | zh-CN accuracy is reasonable for clear speech in a quiet environment. Strong accents or dysarthric speech (the target population) may require higher-quality ASR (e.g. Whisper). |
+| No audio scoring | Acoustic features (pause duration, speaking rate) currently come from the MediaRecorder blob timestamp, not the ASR API. |
+
+### Upgrading to a higher-accuracy ASR
+
+To replace the Web Speech API with a backend ASR endpoint, modify `handleNext()` in `train.js`. The section that currently reads the confirmed ASR text (around the `state.asrText` check) is the replacement point — upload the recorded blob, get back the transcript, then populate `state.asrText` and `state.asrSource` before the scoring step runs:
+
+```
+POST /api/asr
+  body: FormData { audio: <Blob>, expected_keywords: [...] }
+  resp: { text: string, confidence: number }
+```
+
+The rest of the flow (ASR panel display, editing, scoring, storage) requires no changes — the panel can be pre-populated with the backend result and still allow manual correction before confirming.
 
 ---
 
@@ -271,16 +333,17 @@ with wave.open("assets/robot_sample.wav", "w") as f:
 
 ## Integrating FastAPI + Real ASR/TTS
 
-The three mock functions in `train.js` are the integration points:
+The mock/browser functions in `train.js` are the integration points:
 
 ```
 MOCK_TTS(text)                   → POST /api/tts
                                      body: { text }
                                      resp: { audio_url }
 
-MOCK_ASR(audioBlob, keywords)    → POST /api/asr
-                                     body: FormData { audio, expected_keywords }
+handleNext() — state.asrText     → POST /api/asr          (replace the Web Speech API path)
+                                     body: FormData { audio: <Blob>, expected_keywords: [...] }
                                      resp: { text, confidence }
+                                     (pre-populate state.asrText + state.asrConfidence, then confirm)
 
 MOCK_SCORE(text, conf, kw, dur)  → POST /api/score
                                      body: { asr_text, confidence, expected_keywords, duration_ms }

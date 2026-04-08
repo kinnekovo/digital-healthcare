@@ -57,9 +57,20 @@ window.DC = (function () {
       var label = APP.scoreToLabel(Number(t.score) || 0);
       var ms    = t.duration_ms || t.recording_ms || 0;
       var dur   = ms > 0 ? (ms / 1000).toFixed(1) + "s" : "--";
+
+      // ASR text row (only shown for local sessions that have it)
+      var asrHtml = "";
+      if (t.asr_text) {
+        var sourceLabel = asrSourceZh(t.asr_source);
+        asrHtml = '<div class="turn-asr-text">' +
+          '💬 ' + APP.escapeHtml(t.asr_text) +
+          (sourceLabel ? ' <span class="turn-asr-source">' + APP.escapeHtml(sourceLabel) + '</span>' : '') +
+          '</div>';
+      }
+
       return '<tr>' +
         '<td>' + (i + 1) + '</td>' +
-        '<td>' + APP.escapeHtml(t.robot_text || "--") + '</td>' +
+        '<td>' + APP.escapeHtml(t.robot_text || "--") + asrHtml + '</td>' +
         '<td style="text-align:center"><span class="history-score ' + label + '">' + score + '</span></td>' +
         '<td style="text-align:center">' + APP.escapeHtml(t.label ? labelZh(t.label) : "--") + '</td>' +
         '<td style="text-align:center">' + dur + '</td>' +
@@ -67,9 +78,16 @@ window.DC = (function () {
     }).join("");
 
     return '<table class="turns-table">' +
-      '<thead><tr><th>#</th><th>机器人说</th><th>得分</th><th>评级</th><th>时长</th></tr></thead>' +
+      '<thead><tr><th>#</th><th>机器人说 / 您说</th><th>得分</th><th>评级</th><th>时长</th></tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
       '</table>';
+  }
+
+  function asrSourceZh(source) {
+    if (source === "web_speech") return "语音识别";
+    if (source === "manual")     return "手动输入";
+    if (source === "fallback")   return "手动输入";
+    return "";
   }
 
   function labelZh(label) {
