@@ -1,6 +1,6 @@
 # 脑卒中言语康复训练原型 — 虚拟数字人
 
-A static HTML prototype demonstrating a **stroke-elderly speech rehabilitation training loop** with a virtual streamer-style avatar, lip-sync animation, Web Speech API ASR (recording flow), mock intelligibility scoring, and a data centre with trend visualisation.
+A static HTML prototype demonstrating a **stroke-elderly speech rehabilitation training loop** with a virtual streamer-style avatar, lip-sync animation, Web Speech API ASR (recording flow), deterministic explainable intelligibility scoring (V1), and a data centre with trend visualisation.
 
 ---
 
@@ -219,17 +219,52 @@ Populate `state.asrText`, `state.asrSource = "speech"`, and `state.asrConfidence
 
 ---
 
-## Mock Scoring Formula
+## Scoring Algorithm (V1 — Deterministic, Explainable)
+
+The scoring algorithm is fully deterministic: the same spoken answer always produces the same score.
 
 ```
-score = 100 × (0.5 × confidence + 0.4 × keyword_hit_rate + 0.1 × pace_score)
-
-keyword_hit_rate = matched_keywords / expected_keywords
-pace_score       = 1.0 if 0.5 ≤ chars/sec ≤ 4, else degraded
-jitter           ±5 pts (random)
+score = clamp(0..100,
+  round(
+    100 × (0.60 × hitRate + 0.25 × lenScore + 0.15 × paceScore)
+    + confidenceAdjust
+  )
+)
 ```
 
-Labels: **清晰 (≥ 80)** · **一般 (50–79)** · **需改进 (< 50)**
+### Inputs
+
+| Input | Source |
+|---|---|
+| `asrText` | Final transcript from Web Speech API |
+| `confidence` | ASR confidence (0–1); default 0.75 when unavailable |
+| `keywords` | `turn.keywords` from `scenes.json` |
+| `durationMs` | Recording duration in milliseconds |
+
+### Components
+
+| Component | Formula | Weight |
+|---|---|---|
+| `hitRate` | Normalised substring matches ÷ total keywords; 0.6 if no keywords configured | 60% |
+| `lenScore` | `min(1, normalizedChars / 8)` — 8+ chars = full score | 25% |
+| `paceScore` | 1.0 if 1.0–4.0 chars/sec; piecewise linear below/above | 15% |
+| `confidenceAdjust` | `(conf - 0.75) * 32` -> +-8 pts max | additive |
+
+**Normalisation**: whitespace, fullwidth spaces, and common Chinese/English punctuation are stripped before matching.
+
+**Empty transcript**: score fixed at **20**, label `unclear`, tip suggests retry.
+
+### Labels
+
+**清晰 (≥ 80)** · **一般 (50–79)** · **需改进 (< 50)**
+
+### Feedback priority
+
+Issues are reported in order of importance:
+1. Missing keywords (`hitRate < 0.5`) — lists up to 3 missing keywords
+2. Content too short (< 4 normalised chars)
+3. Pace too fast or too slow
+4. Otherwise: positive feedback
 
 ---
 

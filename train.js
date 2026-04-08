@@ -398,27 +398,99 @@ window.TRAIN = (function () {
   /* ── Mock API ── */
 
   async function MOCK_SCORE(asrText, confidence, keywords, durationMs) {
-    await APP.sleep(400);
-    var safeText = typeof asrText === "string" ? asrText : "";
-    var asrLower = safeText.toLowerCase();
-    var hits = keywords.filter(function (k) { return asrLower.includes(k); }).length;
-    var hit  = keywords.length > 0 ? hits / keywords.length : 0.5;
-    var chars = safeText.length || 1;
-    var secs  = (durationMs || DEFAULT_DURATION_MS) / 1000;
-    var cps   = chars / secs;
-    var pace  = (cps >= 0.5 && cps <= 4) ? 1.0 : (cps >= 0.3 ? 0.6 : 0.3);
-    var rawScore = 100 * (0.5 * confidence + 0.4 * hit + 0.1 * pace);
-    // Non-cryptographic jitter for demo variability — intentionally uses Math.random()
-    var jitter   = (Math.random() - 0.5) * 10; // ±5 points of demo noise
-    var score    = Math.round(Math.max(0, Math.min(100, rawScore + jitter)));
-    var label, feedback, tip;
-    if (score >= 80) {
-      label = "clear";   feedback = "👏 非常清晰！说得很好！";          tip = "继续保持，您进步很快！";
-    } else if (score >= 50) {
-      label = "fair";    feedback = "👍 还不错，部分词语可以更清楚。";   tip = "试着放慢语速，每个字说清楚一点。";
-    } else {
-      label = "unclear"; feedback = "💪 没关系，我们再练习一次！";       tip = "深呼吸，慢慢说，每个字都很重要。";
+    await APP.sleep(250);
+
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function clamp100(x) { return Math.max(0, Math.min(100, x)); }
+
+    // Normalize Chinese text: remove whitespace, fullwidth spaces, common punctuation
+    function normalizeText(s) {
+      if (typeof s !== "string") return "";
+      return s
+        .toLowerCase()
+        .replace(/[\s\u3000]/g, "")
+        .replace(/[，。！？、,.!?;:：；"""'''（）()\[\]【】]/g, "");
     }
+
+    var textN = normalizeText(asrText);
+
+    // Empty transcript — return low score with retry suggestion
+    if (!textN) {
+      return {
+        score:    20,
+        label:    "unclear",
+        feedback: "😅 这次没有识别到您的回答。",
+        tip:      "请点击【再试一次】重新录音，尽量靠近麦克风、放慢语速说清楚。",
+      };
+    }
+
+    var kwArr = Array.isArray(keywords) ? keywords : [];
+    var kwN   = kwArr.map(function (k) { return normalizeText(String(k || "")); }).filter(Boolean);
+
+    var secs  = Math.max(0.5, (durationMs || DEFAULT_DURATION_MS) / 1000);
+    var chars = textN.length;
+    var cps   = chars / secs;
+
+    // 1) Keyword hit rate (substring match on normalized text)
+    var hits    = 0;
+    var missing = [];
+    kwN.forEach(function (kn, idx) {
+      if (textN.includes(kn)) {
+        hits++;
+      } else {
+        missing.push(kwArr[idx]);
+      }
+    });
+    // No keywords configured → neutral default so scenes aren't penalised
+    var hitRate = kwN.length > 0 ? (hits / kwN.length) : 0.6;
+
+    // 2) Length / completeness score (0–8 chars maps linearly to 0–1)
+    var lenScore = clamp01(chars / 8);
+
+    // 3) Pace score (chars per second); ideal 1.0–4.0 cps = 1.0
+    var paceScore;
+    if (cps < 0.3)       paceScore = 0.2;
+    else if (cps < 1.0)  paceScore = 0.2 + 0.8 * ((cps - 0.3) / (1.0 - 0.3));
+    else if (cps <= 4.0) paceScore = 1.0;
+    else if (cps <= 6.0) paceScore = 1.0 - 0.7 * ((cps - 4.0) / (6.0 - 4.0));
+    else                 paceScore = 0.3;
+
+    // 4) Confidence as a small ±8 pt adjustment (default 0.75 → 0 adj)
+    var conf    = (typeof confidence === "number" && confidence > 0) ? clamp01(confidence) : DEFAULT_ASR_CONF;
+    var confAdj = (conf - 0.75) * 32; // conf=0.75→0; conf=1→+8; conf=0.5→-8
+
+    // 5) Final score
+    var base  = 100 * (0.60 * hitRate + 0.25 * lenScore + 0.15 * paceScore);
+    var score = clamp100(Math.round(base + confAdj));
+
+    var label = (score >= 80) ? "clear" : (score >= 50) ? "fair" : "unclear";
+
+    // 6) Explainable feedback — prioritise the most impactful issue
+    var feedback, tip;
+    var tooShort    = chars < 4;
+    var paceHint    = cps < 1.0 ? "slow" : cps > 4.0 ? "fast" : "ok";
+    var missingFew  = missing.slice(0, 3).filter(Boolean);
+
+    if (kwN.length > 0 && hitRate < 0.5) {
+      feedback = "🧩 关键信息还不够完整。";
+      tip = "建议补充关键词：" +
+        (missingFew.length
+          ? "“" + missingFew.join("”、“") + "”"
+          : "（请把关键信息说清楚）") + "。";
+    } else if (tooShort) {
+      feedback = "🙂 已有回答，但内容偏短。";
+      tip = "可以说得更完整一些（例如：物品 + 数量/地点/对象）。";
+    } else if (paceHint === "fast") {
+      feedback = "⚡ 表达基本清楚，但语速有点快。";
+      tip = "试着放慢一点，把每个字说清楚（目标约 1~4 字/秒）。";
+    } else if (paceHint === "slow") {
+      feedback = "🐢 表达基本清楚，但语速有点慢。";
+      tip = "可以稍微连贯一点，把关键词完整说出来。";
+    } else {
+      feedback = (label === "clear") ? "👏 表达清楚、信息完整！" : "👍 表达不错，还有提升空间。";
+      tip      = (label === "clear") ? "保持当前节奏，继续下一轮练习。" : "试着把关键词说得更清楚一点，并保持稳定语速。";
+    }
+
     return { score: score, label: label, feedback: feedback, tip: tip };
   }
 
