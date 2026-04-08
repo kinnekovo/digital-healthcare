@@ -149,6 +149,23 @@
           <button id="btn-restart"    class="btn btn-primary"  type="button" disabled style="display:none">🔄 重新选择场景</button>
         </div>
 
+        <!-- ASR Transcript Panel (shown after recording stops) -->
+        <div id="asr-panel" class="asr-panel" style="display:none"
+             role="region" aria-label="语音识别结果" aria-live="polite">
+          <div class="asr-panel-header">
+            <h3 class="asr-panel-title">📝 我听到您说……</h3>
+            <span id="asr-status-badge" class="asr-status-badge"></span>
+          </div>
+          <textarea id="asr-textarea" class="asr-textarea" rows="3"
+                    placeholder="识别结果将显示在这里，您也可以直接在此输入或修改"></textarea>
+          <div id="asr-keywords" class="asr-keywords" aria-label="关键词快速选择"></div>
+          <div class="asr-actions">
+            <button id="btn-asr-confirm" class="btn btn-success asr-confirm-btn" type="button">
+              ✓ 确认并评分
+            </button>
+          </div>
+        </div>
+
         <!-- Feedback / Score Panel -->
         <section id="feedback-panel" class="feedback-panel" aria-label="评分反馈" aria-live="polite">
           <h2 class="card-title">📊 本轮评分</h2>
@@ -264,23 +281,31 @@
           <details class="design-notes">
             <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
             <pre>
-架构概览（当前为纯前端 Mock 实现）
-======================================
+架构概览（当前实现：Web Speech API ASR + Mock TTS/Score）
+===========================================================
 
-当前 Mock 函数 (train.js)       →  真实 FastAPI 端点（替换位置）
+当前函数 (train.js)              →  真实 FastAPI 端点（替换位置）
 ─────────────────────────────────────────────────────────────────
+handleNext() — state.asrText    →  POST /api/asr
+                                       body: FormData { audio, expected_keywords }
+                                       resp: { text: string, confidence: number }
+                                       (在录音完成后上传 blob，将结果写入
+                                        state.asrText / state.asrConfidence，
+                                        随后 ASR 面板仍可让用户二次编辑)
+
 MOCK_TTS(text)                   →  POST /api/tts
                                        body: { text: string }
                                        resp: { audio_url: string }
-
-MOCK_ASR(audioBlob, keywords)    →  POST /api/asr
-                                       body: FormData { audio, expected_keywords }
-                                       resp: { text: string, confidence: number }
 
 MOCK_SCORE(text, conf, kw, dur)  →  POST /api/score
                                        body: { asr_text, confidence,
                                                expected_keywords, duration_ms }
                                        resp: { score, label, feedback, tip }
+
+ASR 说明：
+  桌面 Chrome/Edge 支持 Web Speech API（lang: zh-CN）。
+  Firefox / Safari 降级为手动输入。
+  每轮保存 asr_text + asr_source 到 localStorage。
 
 统一返回格式：
 { "code": 200, "msg": "ok", "data": { ... } }

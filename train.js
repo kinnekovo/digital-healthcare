@@ -67,7 +67,7 @@ window.TRAIN = (function () {
   /* ── Training State ── */
 
   var state = {
-    phase: "idle",       // idle | selecting | training | speaking | recording | feedback | done
+    phase: "idle",       // idle | selecting | training | speaking | recording | asr-review | feedback | done
     scene: null,         // selected scene object
     turnIndex: 0,
     currentTurn: null,
@@ -78,12 +78,170 @@ window.TRAIN = (function () {
     recordingUrl: null,
     recordingDurationMs: 0,
     recordingStartTime: null,
+    asrText: "",         // confirmed text from ASR panel (empty = use mock)
+    asrSource: "mock",   // "web_speech" | "manual" | "fallback" | "mock"
+    asrConfidence: 0.75, // confidence from Web Speech API (when available)
   };
 
   /* ── Constants ── */
 
-  var MAX_RECORD_MS   = 10000;
-  var AMPLITUDE_SMOOTH = 0.25;
+  var MAX_RECORD_MS      = 10000;
+  var AMPLITUDE_SMOOTH   = 0.25;
+  var DEFAULT_ASR_CONF   = 0.75;  // confidence used when ASR API reports no confidence value
+
+  /* ── Web Speech API (ASR) ── */
+
+  var ASR_SUPPORTED = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  var asrRecognition = null;    // active SpeechRecognition instance
+  var asrAccumText   = "";      // accumulated final transcript
+  var asrBestConf    = 0;       // highest confidence value received in the current session
+
+  function startWebSpeech() {
+    if (!ASR_SUPPORTED) return;
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    asrAccumText = "";
+    asrBestConf  = 0;
+    try {
+      asrRecognition = new SR();
+      asrRecognition.lang = "zh-CN";
+      asrRecognition.continuous = true;
+      asrRecognition.interimResults = true;
+      asrRecognition.maxAlternatives = 1;
+
+      asrRecognition.onresult = function (event) {
+        var finalText   = "";
+        var interimText = "";
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          var res = event.results[i];
+          if (res.isFinal) {
+            finalText += res[0].transcript;
+            var conf = res[0].confidence;
+            if (conf && conf > asrBestConf) asrBestConf = conf;
+          } else {
+            interimText += res[0].transcript;
+          }
+        }
+        if (finalText) asrAccumText += finalText;
+        // Live-update the textarea if the ASR panel is already visible
+        var textarea = document.getElementById("asr-textarea");
+        var panel    = document.getElementById("asr-panel");
+        if (textarea && panel && panel.style.display !== "none") {
+          textarea.value = asrAccumText + interimText;
+        }
+      };
+
+      asrRecognition.onerror = function (event) {
+        console.warn("[ASR] SpeechRecognition error:", event.error);
+      };
+
+      asrRecognition.start();
+    } catch (err) {
+      console.warn("[ASR] Failed to start SpeechRecognition:", err);
+      asrRecognition = null;
+    }
+  }
+
+  function stopWebSpeech() {
+    if (asrRecognition) {
+      try { asrRecognition.stop(); } catch (_) {}
+      asrRecognition = null;
+    }
+  }
+
+  /* ── ASR Panel ── */
+
+  function showASRPanel() {
+    var panel    = document.getElementById("asr-panel");
+    var textarea = document.getElementById("asr-textarea");
+    var badge    = document.getElementById("asr-status-badge");
+    if (!panel || !textarea) return;
+
+    var text   = asrAccumText.trim();
+    var source, badgeText, badgeClass;
+
+    if (!ASR_SUPPORTED) {
+      source     = "fallback";
+      badgeText  = "⚠️ 浏览器不支持语音识别，请手动输入";
+      badgeClass = "fallback";
+    } else if (text) {
+      source     = "web_speech";
+      badgeText  = "✅ 语音识别成功（Chrome · 普通话）";
+      badgeClass = "web-speech";
+    } else {
+      source     = "manual";
+      badgeText  = "💡 未识别到内容，请手动输入或选择关键词";
+      badgeClass = "empty";
+    }
+
+    textarea.value   = text;
+    state.asrSource  = source;
+    state.asrText    = text;
+    // Use DEFAULT_ASR_CONF as fallback if no confidence was received from the API
+    state.asrConfidence = asrBestConf > 0 ? asrBestConf : DEFAULT_ASR_CONF;
+
+    if (badge) {
+      badge.textContent = badgeText;
+      badge.className   = "asr-status-badge " + badgeClass;
+    }
+
+    // Listen for manual edits to update source label
+    textarea.oninput = function () {
+      state.asrText   = textarea.value;
+      state.asrSource = "manual";
+      if (badge) {
+        badge.textContent = "✏️ 已手动编辑";
+        badge.className   = "asr-status-badge manual";
+      }
+    };
+
+    // Render keyword quick-pick buttons
+    var keywords = (state.currentTurn && state.currentTurn.keywords) ? state.currentTurn.keywords : [];
+    renderKeywordButtons(keywords, textarea, badge);
+
+    panel.style.display = "";
+    textarea.focus();
+  }
+
+  function renderKeywordButtons(keywords, textarea, badge) {
+    var container = document.getElementById("asr-keywords");
+    if (!container) return;
+    container.innerHTML = "";
+    if (!keywords || keywords.length === 0) return;
+
+    var labelEl = document.createElement("span");
+    labelEl.className   = "asr-keywords-label";
+    labelEl.textContent = "快速添加关键词：";
+    container.appendChild(labelEl);
+
+    keywords.forEach(function (kw) {
+      var btn = document.createElement("button");
+      btn.type      = "button";
+      btn.className = "asr-keyword-btn";
+      btn.textContent = kw;
+      btn.addEventListener("click", function () {
+        if (!textarea) return;
+        var current = textarea.value;
+        textarea.value = current ? current + " " + kw : kw;
+        state.asrText   = textarea.value;
+        state.asrSource = "manual";
+        if (badge) {
+          badge.textContent = "✏️ 已手动编辑";
+          badge.className   = "asr-status-badge manual";
+        }
+        textarea.focus();
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function hideASRPanel() {
+    var panel = document.getElementById("asr-panel");
+    if (panel) panel.style.display = "none";
+    // Clear textarea listener to avoid stale closures
+    var textarea = document.getElementById("asr-textarea");
+    if (textarea) textarea.oninput = null;
+  }
 
   /* ── Web Audio / Lip-Sync ── */
 
@@ -234,6 +392,7 @@ window.TRAIN = (function () {
     }
 
     startVisualizer(stream);
+    startWebSpeech();   // Start ASR alongside MediaRecorder
 
     recordChunks = [];
     var mimeType = getSupportedMimeType();
@@ -263,6 +422,7 @@ window.TRAIN = (function () {
   function stopRecording() {
     if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
     clearInterval(recTimerInterval);
+    stopWebSpeech();   // Stop ASR alongside MediaRecorder
   }
 
   function finalizeRecording() {
@@ -271,8 +431,13 @@ window.TRAIN = (function () {
     state.recordingDurationMs  = Date.now() - state.recordingStartTime;
     state.recordingUrl         = URL.createObjectURL(state.recordingBlob);
     state.recordingStartTime   = null;
-    setPhaseUI("recorded");
-    APP.showBanner("info", "✅ 录音完成，可以播放或提交。");
+    // Reset ASR state before showing panel
+    state.asrText       = "";
+    state.asrSource     = "mock";
+    state.asrConfidence = asrBestConf;
+    setPhaseUI("asr-review");
+    showASRPanel();
+    APP.showBanner("info", "✅ 录音完成，请确认识别结果后提交。");
   }
 
   function updateRecTimer() {
@@ -398,6 +563,7 @@ window.TRAIN = (function () {
     var turn  = scene.turns[state.turnIndex];
     state.currentTurn = turn;
 
+    hideASRPanel();
     var subtitleEl = document.getElementById("subtitle-text");
     var hintEl     = document.getElementById("hint-text");
     if (subtitleEl) subtitleEl.textContent = turn.robot_text;
@@ -417,13 +583,24 @@ window.TRAIN = (function () {
       return;
     }
 
+    hideASRPanel();
     APP.showBanner("info", "⏳ 正在分析您的语音…");
     setPhaseUI("loading");
 
-    var turn = state.currentTurn;
+    var turn     = state.currentTurn;
     var keywords = turn.keywords || turn.expectedKeywords || [];
 
-    var asrResult   = await MOCK_ASR(state.recordingBlob, keywords);
+    // Use confirmed ASR text when available; fall back to mock
+    var asrResult;
+    if (state.asrText !== "" && state.asrSource !== "mock") {
+      asrResult = {
+        text:       state.asrText,
+        confidence: (state.asrSource === "web_speech") ? state.asrConfidence : DEFAULT_ASR_CONF,
+      };
+    } else {
+      asrResult = await MOCK_ASR(state.recordingBlob, keywords);
+    }
+
     var scoreResult = await MOCK_SCORE(
       asrResult.text, asrResult.confidence, keywords, state.recordingDurationMs
     );
@@ -434,6 +611,7 @@ window.TRAIN = (function () {
       turn_index:   state.turnIndex,
       robot_text:   turn.robot_text,
       asr_text:     asrResult.text,
+      asr_source:   state.asrSource,
       confidence:   asrResult.confidence,
       score:        scoreResult.score,
       label:        scoreResult.label,
@@ -474,6 +652,8 @@ window.TRAIN = (function () {
 
     state.recordingBlob = null;
     state.recordingUrl  = null;
+    state.asrText       = "";
+    state.asrSource     = "mock";
   }
 
   async function saveSession() {
@@ -578,6 +758,11 @@ window.TRAIN = (function () {
       case "recording":
         show("btn-stop", true);
         break;
+      case "asr-review":
+        show("btn-playback", true);
+        enable("btn-play-robot");
+        enable("btn-record");
+        break;
       case "recorded":
         show("btn-playback", true);
         show("btn-next", true);
@@ -610,6 +795,7 @@ window.TRAIN = (function () {
 
   function resetToSelection() {
     hideFeedback();
+    hideASRPanel();
     state.phase = "idle";
     var selectDiv  = document.getElementById("scene-select");
     var trainingUI = document.getElementById("training-ui");
@@ -641,6 +827,7 @@ window.TRAIN = (function () {
     on("btn-record", "click", async function () {
       state.recordingBlob = null;
       state.recordingUrl  = null;
+      hideASRPanel();
       var ok = await startRecording();
       if (!ok) return;
       state.phase = "recording";
@@ -670,6 +857,15 @@ window.TRAIN = (function () {
       } else {
         await handleNext();
       }
+    });
+
+    on("btn-asr-confirm", "click", async function () {
+      // Read the current text from the textarea before submitting
+      var textarea = document.getElementById("asr-textarea");
+      if (textarea) {
+        state.asrText = textarea.value.trim();
+      }
+      await handleNext();
     });
 
     on("btn-restart", "click", function () {
