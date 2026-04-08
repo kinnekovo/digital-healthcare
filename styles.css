@@ -1114,6 +1114,46 @@ body.high-contrast .asr-panel {
   border-color: var(--color-primary);
 }
 
+/* TTS replay button row (inside ASR panel) */
+.tts-replay-row {
+  margin-bottom: 0.85rem;
+}
+
+.tts-replay-btn {
+  min-height: 52px;
+  font-size: var(--font-lg);
+  font-weight: 700;
+  width: 100%;
+}
+
+/* Settings TTS group subtitle */
+.settings-group-subtitle {
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* TTS unsupported note */
+.tts-unsupported-note {
+  color: var(--color-warning, #b45309);
+  font-size: 0.9em;
+  margin-bottom: 0.5rem;
+}
+
+/* TTS rate buttons (reuse font-scale-btn style) */
+.tts-rate-btn {
+  min-width: 80px;
+  font-size: var(--font-base) !important;
+}
+
+.tts-rate-btn.active {
+  background: var(--color-primary) !important;
+  color: white !important;
+  border-color: var(--color-primary) !important;
+}
+
 body.high-contrast .asr-transcript-box {
   background: #0F172A;
   color: var(--color-text);

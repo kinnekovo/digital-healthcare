@@ -250,8 +250,41 @@ Preferences are stored in `localStorage` under key `rehab_prefs_v1`:
 |----------------|---------------------|---------|----------------------------------------|
 | `fontScale`    | `1.0`, `1.1`, `1.2` | `1.0`   | Scales root font-size proportionally   |
 | `highContrast` | `true` / `false`    | `false` | Switches to dark high-contrast palette |
+| `ttsEnabled`   | `true` / `false`    | `true`  | Enables / disables robot TTS           |
+| `ttsRate`      | `0.9`, `1.0`, `1.1` | `1.0`   | Speech rate (slow / standard / fast)   |
 
 Changes apply instantly and persist across page reloads.
+
+---
+
+## TTS — Web Speech Synthesis API
+
+The app uses the browser's built-in **Web Speech Synthesis API** (`speechSynthesis`) to read each robot prompt aloud, at zero cost and with no backend dependency.
+
+### How it works
+
+- When a new turn starts, the robot's `robot_text` is automatically spoken via `speechSynthesis` (language: `zh-CN`).
+- A **🔊 朗读本句** button appears in the ASR panel to replay the current sentence at any time.
+- When the user taps **🎙️ 开始录音**, any ongoing TTS is immediately cancelled (`speechSynthesis.cancel()`) to prevent interference with ASR.
+- TTS never blocks the UI. All errors are caught silently so training can always continue.
+
+### Disabling TTS
+
+Go to **⚙️ 设置 → 语音朗读（TTS）** and toggle off **"朗读机器人台词"**.  
+The setting is saved immediately and persists after reload.
+
+### Known browser limitations
+
+| Browser | Behaviour |
+|---------|-----------|
+| Chrome ≥ 33 (desktop) | Full support — auto-speaks on turn start |
+| Edge ≥ 79 (desktop) | Full support |
+| Safari (iOS / macOS) | Supported but **requires a prior user gesture** — the first auto-speak may be silently skipped; use **🔊 朗读本句** to replay manually |
+| Firefox | `speechSynthesis` supported but voice availability varies; may require user gesture |
+
+> **Note**: Some browsers block `speechSynthesis.speak()` on page load or after inactivity without a preceding user interaction. The **🔊 朗读本句** button always works because it is triggered by a click.
+
+If `speechSynthesis` is not available, the TTS controls in Settings are hidden and a note is shown. The app remains fully functional without TTS.
 
 ---
 

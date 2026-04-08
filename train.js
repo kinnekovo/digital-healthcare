@@ -522,6 +522,11 @@ window.TRAIN = (function () {
     state.phase = "speaking";
     setPhaseUI("speaking");
 
+    // Auto-speak robot text via TTS (if supported and enabled)
+    if (typeof window.TTS !== "undefined") {
+      TTS.speak(turn.robot_text);
+    }
+
     await playRobotVoice(turn.robot_text);
 
     // After robot finishes speaking, show the ASR panel
@@ -742,6 +747,8 @@ window.TRAIN = (function () {
     // Start recording + ASR — MUST be a direct user gesture for Chrome microphone permission
     on("btn-asr-start", "click", function () {
       if (!ASR_SUPPORTED) return;
+      // Cancel any ongoing TTS to prevent interference with microphone
+      if (typeof window.TTS !== "undefined") TTS.stop();
       // Reset per-recognition state
       state.asrError = "";
       asrFinalText   = "";
@@ -802,6 +809,12 @@ window.TRAIN = (function () {
     // Return to scene selection
     on("btn-restart", "click", function () {
       resetToSelection();
+    });
+
+    // TTS replay button — re-read the current robot_text
+    on("btn-tts-replay", "click", function () {
+      if (!state.currentTurn) return;
+      if (typeof window.TTS !== "undefined") TTS.speak(state.currentTurn.robot_text);
     });
   }
 

@@ -142,6 +142,13 @@
         <div id="asr-panel" class="asr-panel" style="display:none"
              role="region" aria-label="语音识别" aria-live="polite">
 
+          <!-- TTS replay button -->
+          <div class="tts-replay-row">
+            <button id="btn-tts-replay" class="btn btn-outline tts-replay-btn" type="button">
+              🔊 朗读本句
+            </button>
+          </div>
+
           <!-- Status bar -->
           <div class="asr-status-row">
             <span id="asr-status-dot"  class="asr-status-dot"></span>
@@ -256,6 +263,29 @@
           </label>
         </div>
 
+        <!-- TTS (Text-to-Speech) -->
+        <div class="settings-group" id="settings-tts-group">
+          <h3 class="settings-group-title">语音朗读（TTS）</h3>
+          <p class="tts-unsupported-note" style="display:none;">
+            ⚠️ 当前浏览器不支持语音朗读（建议使用桌面版 Chrome）。
+          </p>
+          <div class="tts-controls">
+            <label class="toggle-label" for="tts-enabled-toggle">
+              <input id="tts-enabled-toggle" type="checkbox" class="toggle-input" />
+              <span class="toggle-track"></span>
+              <span class="toggle-text">朗读机器人台词（默认开启）</span>
+            </label>
+            <div style="margin-top:0.75rem;">
+              <span class="settings-group-subtitle">朗读语速：</span>
+              <div class="font-scale-btns" role="group" aria-label="选择朗读语速">
+                <button class="tts-rate-btn btn btn-outline" data-rate="0.9" type="button">慢</button>
+                <button class="tts-rate-btn btn btn-outline" data-rate="1.0" type="button">标准</button>
+                <button class="tts-rate-btn btn btn-outline" data-rate="1.1" type="button">快</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Account Status -->
         <div class="settings-group">
           <h3 class="settings-group-title">账户与同步</h3>
@@ -283,7 +313,7 @@
           <details class="design-notes">
             <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
             <pre>
-架构概览（录音流 ASR：Web Speech API + 简洁失败重试 + Mock TTS/Score）
+架构概览（录音流 ASR：Web Speech API + 简洁失败重试 + Web Speech Synthesis TTS）
 =========================================================================
 
 训练流程（train.js）                 →  真实 FastAPI 端点（替换位置）
@@ -298,6 +328,9 @@ doScoring() — state.asrText         →  POST /api/asr
 MOCK_TTS(text)                       →  POST /api/tts
                                            body: { text: string }
                                            resp: { audio_url: string }
+                                           (当前同时使用 Web Speech Synthesis 朗读，
+                                            tts.js 封装 speechSynthesis，
+                                            设置页可关闭/调速)
 
 MOCK_SCORE(text, conf, kw, dur)      →  POST /api/score
                                            body: { asr_text, confidence,
@@ -348,6 +381,7 @@ ASR 说明（方案1 — 录音流）：
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabaseClient.js"></script>
   <script src="app.js"></script>
+  <script src="tts.js"></script>
   <script src="train.js"></script>
   <script src="dataCenter.js"></script>
   <script src="settings.js"></script>
