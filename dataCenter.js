@@ -58,13 +58,26 @@ window.DC = (function () {
       var ms    = t.duration_ms || t.recording_ms || 0;
       var dur   = ms > 0 ? (ms / 1000).toFixed(1) + "s" : "--";
 
-      // ASR text row (only shown for local sessions that have it)
+      // Per-turn ASR / keyword info (requirement: show for speech and keyword sources)
       var asrHtml = "";
-      if (t.asr_text) {
-        var sourceLabel = asrSourceZh(t.asr_source);
+      if (t.asr_source === "speech" && t.asr_text) {
+        asrHtml = '<div class="turn-asr-text">' +
+          '💬 识别：' + APP.escapeHtml(t.asr_text) +
+          ' <span class="turn-asr-source">语音识别</span>' +
+          '</div>';
+      } else if (t.asr_source === "keyword" &&
+                 t.selected_keywords && t.selected_keywords.length > 0) {
+        asrHtml = '<div class="turn-asr-text">' +
+          '🏷️ 关键词：' + APP.escapeHtml(t.selected_keywords.join("、")) +
+          ' <span class="turn-asr-source">关键词选择</span>' +
+          '</div>';
+      } else if (t.asr_text && t.asr_source &&
+                 t.asr_source !== "none" && t.asr_source !== "mock") {
+        // Backward compatibility for older sessions (web_speech / manual / fallback)
+        var oldLabel = asrSourceZh(t.asr_source);
         asrHtml = '<div class="turn-asr-text">' +
           '💬 ' + APP.escapeHtml(t.asr_text) +
-          (sourceLabel ? ' <span class="turn-asr-source">' + APP.escapeHtml(sourceLabel) + '</span>' : '') +
+          (oldLabel ? ' <span class="turn-asr-source">' + APP.escapeHtml(oldLabel) + '</span>' : '') +
           '</div>';
       }
 
@@ -84,6 +97,10 @@ window.DC = (function () {
   }
 
   function asrSourceZh(source) {
+    // New sources (Plan A)
+    if (source === "speech")  return "语音识别";
+    if (source === "keyword") return "关键词选择";
+    // Legacy sources (backward compat)
     if (source === "web_speech") return "语音识别";
     if (source === "manual")     return "手动输入";
     if (source === "fallback")   return "手动输入";
