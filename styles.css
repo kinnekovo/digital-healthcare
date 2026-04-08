@@ -989,7 +989,7 @@ body {
 .settings-status-value.logged-in  { color: var(--color-success); }
 .settings-status-value.logged-out { color: var(--color-danger);  }
 
-/* ── ASR Transcript Panel ── */
+/* ── ASR Panel v2 — ASR-only (no manual text input) ── */
 .asr-panel {
   background: var(--color-surface);
   border: 2px solid var(--color-primary);
@@ -999,133 +999,181 @@ body {
   box-shadow: var(--shadow-card);
 }
 
-.asr-panel-header {
+/* Status bar */
+.asr-status-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
-.asr-panel-title {
-  font-size: var(--font-lg);
-  font-weight: 700;
-  color: var(--color-primary);
-  margin: 0;
+.asr-status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: background var(--transition);
 }
 
-.asr-status-badge {
-  font-size: 0.95rem;
+.asr-status-dot.listening {
+  background: var(--color-danger);
+  animation: blink 0.8s infinite;
+}
+
+.asr-status-dot.final {
+  background: var(--color-success);
+}
+
+.asr-status-dot.error {
+  background: var(--color-warning);
+}
+
+.asr-status-text {
+  font-size: var(--font-base);
   font-weight: 600;
-  padding: 0.2rem 0.75rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid transparent;
-}
-.asr-status-badge.web-speech {
-  background: #D1FAE5;
-  color: #065F46;
-  border-color: #6EE7B7;
-}
-.asr-status-badge.manual {
-  background: #FEF3C7;
-  color: #92400E;
-  border-color: #FCD34D;
-}
-.asr-status-badge.fallback {
-  background: #FEE2E2;
-  color: #991B1B;
-  border-color: #FCA5A5;
-}
-.asr-status-badge.empty {
-  background: #F1F5F9;
   color: var(--color-text-muted);
-  border-color: var(--color-border);
+  transition: color var(--transition);
 }
 
-.asr-textarea {
-  width: 100%;
-  font-size: var(--font-lg);    /* 24px — large for elderly */
-  font-family: inherit;
-  line-height: 1.6;
-  padding: 0.75rem 1rem;
+.asr-status-text.listening { color: var(--color-danger); }
+.asr-status-text.final     { color: var(--color-success); }
+.asr-status-text.error     { color: var(--color-warning); }
+
+/* Read-only transcript display */
+.asr-transcript-box {
+  min-height: 72px;
+  background: var(--color-bg);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg);
+  padding: 0.9rem 1rem;
+  font-size: var(--font-lg);
+  line-height: 1.6;
   color: var(--color-text);
-  resize: vertical;
-  min-height: 90px;
-  transition: border-color var(--transition);
-}
-.asr-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  margin-bottom: 1rem;
+  overflow-wrap: break-word;
+  user-select: text;
 }
 
-.asr-keywords {
+.asr-transcript-placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.asr-transcript-interim {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Main action buttons row */
+.asr-btn-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.asr-action-btn {
+  flex: 1;
+  min-width: 110px;
+  min-height: 60px;
+  font-size: var(--font-lg);
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+}
+
+/* Fallback section */
+.asr-fallback {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 2px dashed var(--color-border);
+}
+
+.asr-error-msg {
+  color: var(--color-warning);
+  font-size: var(--font-base);
+  font-weight: 600;
+  margin-bottom: 0.85rem;
+  line-height: 1.4;
+}
+
+/* Keyword multi-select section */
+.asr-kw-section {
+  margin-top: 1rem;
+}
+
+.asr-kw-label {
+  font-size: var(--font-base);
+  color: var(--color-text-muted);
+  margin-bottom: 0.65rem;
+}
+
+.asr-keyword-chips {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 0.5rem;
-  margin-top: 0.75rem;
 }
 
-.asr-keywords-label {
-  font-size: 1rem;
-  color: var(--color-text-muted);
-  margin-right: 0.25rem;
-}
-
-.asr-keyword-btn {
+.asr-keyword-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem 1rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  background: #EFF6FF;
-  color: var(--color-primary);
-  border: 2px solid var(--color-primary);
+  padding: 0.5rem 1.25rem;
+  font-size: var(--font-base);
+  font-weight: 700;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background var(--transition), color var(--transition);
-  min-height: 44px;
+  min-height: 52px;
+  transition: all var(--transition);
+  -webkit-tap-highlight-color: transparent;
 }
-.asr-keyword-btn:hover,
-.asr-keyword-btn:focus {
+
+.asr-keyword-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.asr-keyword-chip.selected {
   background: var(--color-primary);
-  color: #FFFFFF;
+  color: white;
+  border-color: var(--color-primary);
 }
-.asr-keyword-btn:focus {
+
+.asr-keyword-chip:focus {
   outline: 2px solid var(--color-primary-dark);
   outline-offset: 2px;
 }
 
-.asr-actions {
-  margin-top: 1rem;
-}
-
-.asr-confirm-btn {
-  min-height: 56px;
-  font-size: var(--font-lg);
-  padding: 0.75rem 2rem;
-  width: 100%;
+.asr-kw-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 
 /* High contrast overrides for ASR panel */
 body.high-contrast .asr-panel {
   border-color: var(--color-primary);
 }
-body.high-contrast .asr-textarea {
+
+body.high-contrast .asr-transcript-box {
   background: #0F172A;
   color: var(--color-text);
   border-color: var(--color-border);
 }
-body.high-contrast .asr-keyword-btn {
-  background: #1E3A5F;
+
+body.high-contrast .asr-keyword-chip {
+  background: #1E293B;
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+body.high-contrast .asr-keyword-chip:hover {
+  border-color: var(--color-primary);
   color: var(--color-primary);
 }
-body.high-contrast .asr-keyword-btn:hover {
+
+body.high-contrast .asr-keyword-chip.selected {
   background: var(--color-primary);
   color: #000;
 }

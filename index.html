@@ -129,42 +129,49 @@
             <canvas id="visualizer" width="300" height="48"></canvas>
           </div>
 
-          <div id="rec-indicator" class="recording-indicator" role="alert" aria-live="assertive">
-            <div class="rec-dot"></div>
-            <span>录音中</span>
-            <span id="rec-timer" class="recording-timer">0s / 10s</span>
-          </div>
         </section>
 
         <!-- Control Buttons -->
         <div class="btn-group" role="group" aria-label="训练控制按钮">
-          <!-- btn-start-placeholder is a hidden element to satisfy setPhaseUI idle state -->
-          <button id="btn-start-placeholder" class="btn btn-primary" type="button"
-                  style="display:none" aria-hidden="true">占位</button>
           <button id="btn-play-robot" class="btn btn-outline"  type="button" disabled>🔊 播放机器人</button>
-          <button id="btn-record"     class="btn btn-danger"   type="button" disabled>🎙️ 开始录音</button>
-          <button id="btn-stop"       class="btn btn-neutral"  type="button" disabled style="display:none">⏹ 停止录音</button>
-          <button id="btn-playback"   class="btn btn-neutral"  type="button" disabled style="display:none">▶️ 播放录音</button>
-          <button id="btn-next"       class="btn btn-success"  type="button" disabled style="display:none">提交 →</button>
+          <button id="btn-next"       class="btn btn-success"  type="button" disabled style="display:none">下一句 →</button>
           <button id="btn-restart"    class="btn btn-primary"  type="button" disabled style="display:none">🔄 重新选择场景</button>
         </div>
 
-        <!-- ASR Transcript Panel (shown after recording stops) -->
+        <!-- ASR-only Panel (shown after robot prompt) -->
         <div id="asr-panel" class="asr-panel" style="display:none"
-             role="region" aria-label="语音识别结果" aria-live="polite">
-          <div class="asr-panel-header">
-            <h3 class="asr-panel-title">📝 我听到您说……</h3>
-            <span id="asr-status-badge" class="asr-status-badge"></span>
+             role="region" aria-label="语音识别" aria-live="polite">
+
+          <!-- Status bar -->
+          <div class="asr-status-row">
+            <span id="asr-status-dot"  class="asr-status-dot"></span>
+            <span id="asr-status-text" class="asr-status-text">等待开始…</span>
           </div>
-          <textarea id="asr-textarea" class="asr-textarea" rows="3"
-                    placeholder="识别结果将显示在这里，您也可以直接在此输入或修改"></textarea>
-          <div id="asr-keywords" class="asr-keywords" aria-label="关键词快速选择"></div>
-          <div class="asr-actions">
-            <button id="btn-asr-confirm" class="btn btn-success asr-confirm-btn" type="button">
-              ✓ 确认并评分
-            </button>
+
+          <!-- Read-only transcript display -->
+          <div id="asr-transcript" class="asr-transcript-box" aria-live="polite" aria-atomic="false">
+            <span class="asr-transcript-placeholder">识别结果将显示在这里…</span>
           </div>
-        </div>
+
+          <!-- Main ASR control buttons -->
+          <div class="asr-btn-row">
+            <button id="btn-asr-start"   class="btn btn-primary asr-action-btn" type="button">🎙️ 开始说话</button>
+            <button id="btn-asr-stop"    class="btn btn-neutral asr-action-btn" type="button" disabled>⏹ 我说完了</button>
+            <button id="btn-asr-confirm" class="btn btn-success asr-action-btn" type="button" disabled>✓ 确认并评分</button>
+          </div>
+
+          <!-- Fallback section: shown on error / empty / unsupported -->
+          <div id="asr-fallback" class="asr-fallback" style="display:none">
+            <p id="asr-error-msg" class="asr-error-msg"></p>
+            <button id="btn-asr-retry" class="btn btn-outline asr-action-btn" type="button">🔄 再说一次</button>
+            <div class="asr-kw-section">
+              <p class="asr-kw-label">或选择您说到的关键词（可多选）：</p>
+              <div id="asr-keyword-chips" class="asr-keyword-chips"
+                   role="group" aria-label="关键词多选"></div>
+            </div>
+          </div>
+
+        </div><!-- /asr-panel -->
 
         <!-- Feedback / Score Panel -->
         <section id="feedback-panel" class="feedback-panel" aria-label="评分反馈" aria-live="polite">
@@ -281,31 +288,35 @@
           <details class="design-notes">
             <summary>🛠️ 开发者说明 / FastAPI 集成指南</summary>
             <pre>
-架构概览（当前实现：Web Speech API ASR + Mock TTS/Score）
-===========================================================
+架构概览（ASR-only 训练：Web Speech API + 关键词回退 + Mock TTS/Score）
+=========================================================================
 
-当前函数 (train.js)              →  真实 FastAPI 端点（替换位置）
-─────────────────────────────────────────────────────────────────
-handleNext() — state.asrText    →  POST /api/asr
-                                       body: FormData { audio, expected_keywords }
-                                       resp: { text: string, confidence: number }
-                                       (在录音完成后上传 blob，将结果写入
-                                        state.asrText / state.asrConfidence，
-                                        随后 ASR 面板仍可让用户二次编辑)
+训练流程（train.js）                 →  真实 FastAPI 端点（替换位置）
+─────────────────────────────────────────────────────────────────────────
+doScoring() — state.asrText         →  POST /api/asr
+                                           body: FormData { audio, expected_keywords }
+                                           resp: { text: string, confidence: number }
+                                           (替换 Web Speech API 路径；
+                                            写入 state.asrText / state.asrConfidence
+                                            后同样触发 doScoring)
 
-MOCK_TTS(text)                   →  POST /api/tts
-                                       body: { text: string }
-                                       resp: { audio_url: string }
+MOCK_TTS(text)                       →  POST /api/tts
+                                           body: { text: string }
+                                           resp: { audio_url: string }
 
-MOCK_SCORE(text, conf, kw, dur)  →  POST /api/score
-                                       body: { asr_text, confidence,
-                                               expected_keywords, duration_ms }
-                                       resp: { score, label, feedback, tip }
+MOCK_SCORE(text, conf, kw, dur)      →  POST /api/score
+                                           body: { asr_text, confidence,
+                                                   expected_keywords, duration_ms }
+                                           resp: { score, label, feedback, tip }
 
-ASR 说明：
-  桌面 Chrome/Edge 支持 Web Speech API（lang: zh-CN）。
-  Firefox / Safari 降级为手动输入。
-  每轮保存 asr_text + asr_source 到 localStorage。
+ASR 说明（Plan A — ASR-only）：
+  桌面 Chrome 使用 SpeechRecognition（lang: zh-CN, continuous: false）。
+  用户手势触发"开始说话" → recognition.start()。
+  "我说完了" → recognition.stop()；onend 处理结果。
+  失败/空结果 → 显示回退面板（再说一次 + 关键词多选）。
+  不支持时自动显示关键词模式，无手动文字输入。
+
+每轮保存字段：asr_text, asr_source, selected_keywords, asr_error。
 
 统一返回格式：
 { "code": 200, "msg": "ok", "data": { ... } }

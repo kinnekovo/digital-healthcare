@@ -79,7 +79,7 @@ To add a scene, append an object to the `scenes` array. No JS changes required.
 
 ## How to Run Locally
 
-Microphone access requires either **HTTPS** or **localhost**:
+Web Speech API requires either **HTTPS** or **localhost** (same as MediaDevices):
 
 ```bash
 # Python (recommended)
@@ -91,7 +91,7 @@ npx serve .
 ```
 
 > **Do NOT open `index.html` directly** (`file://`).  
-> The browser blocks microphone access unless served from localhost or HTTPS.
+> The browser blocks `SpeechRecognition` unless served from localhost or HTTPS.
 
 ---
 
@@ -100,11 +100,9 @@ npx serve .
 | Feature                     | Minimum version                              |
 |-----------------------------|----------------------------------------------|
 | Web Audio API (lip-sync)    | Chrome 66, Firefox 60, Safari 14.1, Edge 79  |
-| MediaRecorder (recording)   | Chrome 47, Firefox 25, Edge 79               |
-| MediaDevices.getUserMedia   | All modern browsers on HTTPS/localhost       |
 | `crypto.randomUUID`         | Chrome 92, Firefox 95, Safari 15.4           |
 | Canvas 2D (trend chart)     | All modern browsers                          |
-| Web Speech API (ASR)        | Chrome 33+, Edge 79+ (full); Safari 14.1 (limited); **Firefox: not supported** |
+| Web Speech API (ASR)        | **Chrome 33+ / Edge 79+ (full support)**; Safari 14.1 (limited); **Firefox: not supported** — keyword fallback used automatically |
 
 ---
 
@@ -114,64 +112,105 @@ npx serve .
 2. Choose one of the 3 scene cards (买菜 / 问路 / 打电话).
 3. For each turn in the scene:
    - Robot "speaks" (mock TTS → sample audio + lip-sync animation)
-   - User records voice (MediaRecorder, max 10 s)
-   - **Web Speech API** recognises speech in real time (zh-CN, desktop Chrome)
-   - Transcript panel appears — user can review, edit, or add keywords
-   - User confirms → mock intelligibility scoring → score (0-100) + label + feedback
+   - **ASR panel** appears — tap **🎙️ 开始说话** to start speech recognition
+   - Speak naturally; real-time partial transcript appears in the display box
+   - Tap **⏹ 我说完了** to stop recognition
+   - If recognized: transcript shown, **✓ 确认并评分** becomes enabled
+   - If not recognized / error: fallback panel appears with **🔄 再说一次** + keyword selection chips
+   - User confirms → mock intelligibility scoring → score (0–100) + label + feedback
 4. After the last turn, session is saved to `localStorage` and async cloud sync starts.
 5. App automatically navigates to **#/data** and highlights the new session row.
 
 ---
 
-## ASR — Web Speech API Integration
+## ASR — Web Speech API (Plan A: ASR-only)
 
 ### How it works
 
-The training loop integrates the browser's native **Web Speech API** (`SpeechRecognition` / `webkitSpeechRecognition`) alongside `MediaRecorder`:
+The training loop uses the browser's native **Web Speech API** (`SpeechRecognition` / `webkitSpeechRecognition`) as the **sole** input method. There is no manual text field.
 
-1. When the user clicks **开始录音**, both `MediaRecorder` and `SpeechRecognition` start simultaneously.
-2. Real-time interim results stream into the ASR transcript panel.
-3. When the user clicks **停止录音** (or the 10-second limit is reached), both stop.
-4. The **ASR Transcript Panel** appears with the recognised text in an editable textarea.
-5. **Keyword quick-pick buttons** (from the current turn's `keywords` list) let the user tap common words to append or correct the text — especially helpful for users with limited typing ability.
-6. The user confirms (or edits first) and clicks **✓ 确认并评分** to proceed to scoring.
+| Parameter | Value |
+|---|---|
+| `lang` | `zh-CN` |
+| `continuous` | `false` (single-utterance per tap) |
+| `interimResults` | `true` (live partial transcript shown) |
+| `maxAlternatives` | `1` |
+
+**Turn flow:**
+1. Robot prompt plays.
+2. ASR panel appears showing status *(等待开始…)*.
+3. User taps **🎙️ 开始说话** — user gesture triggers `recognition.start()`.
+4. Live interim transcript streams into the read-only display box.
+5. User taps **⏹ 我说完了** → `recognition.stop()`.  
+   `onend` resolves the result:
+   - **Success (text received)**: status → *✅ 识别完成*; **✓ 确认并评分** becomes enabled.
+   - **Failure / empty**: fallback panel shown (see below).
+6. User taps **✓ 确认并评分** → scoring → feedback.
+
+### Failure fallback (keyword multi-select)
+
+When ASR fails or returns empty text, a fallback panel appears **instead of a typing field**:
+
+- **🔄 再说一次** — retries recognition from scratch.
+- **Keyword chips** — multi-select buttons derived from the current turn's `keywords` (or scene-level keywords if the turn has none). Selecting chips derives a space-joined transcript string for scoring.
 
 ### `asr_source` values stored per turn
 
-| Value         | Meaning                                                    |
-|---------------|------------------------------------------------------------|
-| `web_speech`  | Text came from the Web Speech API without manual changes   |
-| `manual`      | User edited the textarea or used keyword buttons           |
-| `fallback`    | Browser does not support Web Speech API — user typed manually |
-| `mock`        | Fallback used inside the dev/test mock path                |
+| Value | Meaning |
+|---|---|
+| `speech` | Final transcript from Web Speech API |
+| `keyword` | Derived from user-selected keyword chips |
+| `none` | Turn confirmed with no text (unusual; score uses defaults) |
 
-### Manual-input fallback
+### Compatibility
 
-If `SpeechRecognition` is not available (Firefox, Safari < 14.1, non-Chrome mobile), the panel still appears with an empty textarea so the user can type the answer manually. Training always proceeds regardless of ASR support.
+| Browser | Behavior |
+|---|---|
+| Chrome ≥ 33 (desktop) | Full ASR support |
+| Edge ≥ 79 (desktop) | Full ASR support (uses same Chromium engine) |
+| Safari | Limited / inconsistent — keyword fallback shown automatically |
+| Firefox | Not supported — keyword fallback shown automatically |
+
+If `SpeechRecognition` is not detected, a one-time warning banner is shown and the ASR panel immediately opens in keyword-only mode — training can always be completed.
 
 ### Local storage
 
 Each turn record stored in `localStorage` (key `rehab_sessions_v1`) includes:
 
 ```json
-{ "asr_text": "我想买两斤白菜", "asr_source": "web_speech" }
+{
+  "asr_text": "我想买两斤白菜",
+  "asr_source": "speech",
+  "selected_keywords": [],
+  "duration_ms": 4200
+}
 ```
 
-These fields are **local-only** at this stage — the Supabase `turns` table schema is unchanged.
+For keyword-mode turns:
+
+```json
+{
+  "asr_text": "白菜 萝卜",
+  "asr_source": "keyword",
+  "selected_keywords": ["白菜", "萝卜"],
+  "duration_ms": 0
+}
+```
+
+These fields are **local-only** — the Supabase `turns` table schema is unchanged.
 
 ### Known limitations
 
 | Limitation | Notes |
 |---|---|
-| Chrome-only | `webkitSpeechRecognition` is only fully supported in Chrome/Edge. Firefox and Safari show the manual-input fallback. |
-| Requires HTTPS or localhost | The browser will block `SpeechRecognition` on `file://` pages. |
-| External audio processing | Each call to the Web Speech API sends audio to Google's servers. Do not use for sensitive data in production. |
-| Accuracy | zh-CN accuracy is reasonable for clear speech in a quiet environment. Strong accents or dysarthric speech (the target population) may require higher-quality ASR (e.g. Whisper). |
-| No audio scoring | Acoustic features (pause duration, speaking rate) currently come from the MediaRecorder blob timestamp, not the ASR API. |
+| Chrome/Edge desktop only | `webkitSpeechRecognition` is only fully supported in Chrome/Edge. Other browsers auto-fallback to keyword mode. |
+| Requires HTTPS or localhost | The browser blocks `SpeechRecognition` on `file://` pages. |
+| External audio processing | The Web Speech API sends audio to Google's servers. Do not use for sensitive data in production. |
+| Accuracy | zh-CN accuracy is reasonable for clear speech in a quiet environment. Dysarthric speech (the target population) may require higher-quality ASR (e.g. Whisper via backend). |
 
 ### Upgrading to a higher-accuracy ASR
 
-To replace the Web Speech API with a backend ASR endpoint, modify `handleNext()` in `train.js`. The section that currently reads the confirmed ASR text (around the `state.asrText` check) is the replacement point — upload the recorded blob, get back the transcript, then populate `state.asrText` and `state.asrSource` before the scoring step runs:
+To replace the Web Speech API with a backend ASR endpoint, modify `doScoring()` in `train.js`:
 
 ```
 POST /api/asr
@@ -179,7 +218,7 @@ POST /api/asr
   resp: { text: string, confidence: number }
 ```
 
-The rest of the flow (ASR panel display, editing, scoring, storage) requires no changes — the panel can be pre-populated with the backend result and still allow manual correction before confirming.
+Populate `state.asrText`, `state.asrSource = "speech"`, and `state.asrConfidence` before calling `doScoring()`. The rest of the flow (fallback, scoring, storage) requires no changes.
 
 ---
 
