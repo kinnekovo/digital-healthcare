@@ -522,12 +522,14 @@ window.TRAIN = (function () {
     state.phase = "speaking";
     setPhaseUI("speaking");
 
-    // Auto-speak robot text via TTS (if supported and enabled)
-    if (typeof window.TTS !== "undefined") {
-      TTS.speak(turn.robot_text);
+    // Speak robot text: prefer TTS when supported+enabled, else fall back to sample audio
+    if (typeof window.TTS !== "undefined" && TTS.isEnabled()) {
+      setAvatarStatus("speaking");
+      await TTS.speakAsync(turn.robot_text);
+      setAvatarStatus("ready");
+    } else {
+      await playRobotVoice(turn.robot_text);
     }
-
-    await playRobotVoice(turn.robot_text);
 
     // After robot finishes speaking, show the ASR panel
     state.phase = "asr-idle";
@@ -732,10 +734,14 @@ window.TRAIN = (function () {
       if (el) el.addEventListener(evt, fn);
     }
 
-    // Replay robot prompt at any time during a turn
+    // Replay robot prompt — prefer TTS; fall back to sample audio if unsupported/disabled
     on("btn-play-robot", "click", async function () {
       if (!state.currentTurn) return;
-      await playRobotVoice(state.currentTurn.robot_text);
+      if (typeof window.TTS !== "undefined" && TTS.isEnabled()) {
+        await TTS.speakAsync(state.currentTurn.robot_text);
+      } else {
+        await playRobotVoice(state.currentTurn.robot_text);
+      }
     });
 
     // Advance to next turn (shown during feedback phase)
@@ -809,12 +815,6 @@ window.TRAIN = (function () {
     // Return to scene selection
     on("btn-restart", "click", function () {
       resetToSelection();
-    });
-
-    // TTS replay button — re-read the current robot_text
-    on("btn-tts-replay", "click", function () {
-      if (!state.currentTurn) return;
-      if (typeof window.TTS !== "undefined") TTS.speak(state.currentTurn.robot_text);
     });
   }
 

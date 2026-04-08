@@ -111,7 +111,7 @@ npx serve .
 1. Navigate to **#/train** (default).
 2. Choose one of the 3 scene cards (买菜 / 问路 / 打电话).
 3. For each turn in the scene:
-   - Robot "speaks" (mock TTS → sample audio + lip-sync animation)
+   - Robot "speaks" via TTS (Web Speech Synthesis) if supported and enabled, or plays the sample audio as a fallback; lip-sync animation plays during sample audio playback
    - **ASR panel** appears — tap **🎙️ 开始录音** to start speech recognition
    - Speak naturally; real-time partial transcript appears in the display box
    - Tap **⏹ 停止录音** — status changes to **⏳ 识别中…** while the engine finalises
@@ -264,7 +264,7 @@ The app uses the browser's built-in **Web Speech Synthesis API** (`speechSynthes
 ### How it works
 
 - When a new turn starts, the robot's `robot_text` is automatically spoken via `speechSynthesis` (language: `zh-CN`).
-- A **🔊 朗读本句** button appears in the ASR panel to replay the current sentence at any time.
+- The **🔊 播放机器人** button (always visible during a turn) replays the current sentence at any time — it uses TTS when supported and enabled, and falls back to the placeholder sample audio otherwise.
 - When the user taps **🎙️ 开始录音**, any ongoing TTS is immediately cancelled (`speechSynthesis.cancel()`) to prevent interference with ASR.
 - TTS never blocks the UI. All errors are caught silently so training can always continue.
 
@@ -279,10 +279,10 @@ The setting is saved immediately and persists after reload.
 |---------|-----------|
 | Chrome ≥ 33 (desktop) | Full support — auto-speaks on turn start |
 | Edge ≥ 79 (desktop) | Full support |
-| Safari (iOS / macOS) | Supported but **requires a prior user gesture** — the first auto-speak may be silently skipped; use **🔊 朗读本句** to replay manually |
+| Safari (iOS / macOS) | Supported but **requires a prior user gesture** — the first auto-speak may be silently skipped; use **🔊 播放机器人** to replay manually |
 | Firefox | `speechSynthesis` supported but voice availability varies; may require user gesture |
 
-> **Note**: Some browsers block `speechSynthesis.speak()` on page load or after inactivity without a preceding user interaction. The **🔊 朗读本句** button always works because it is triggered by a click.
+> **Note**: Some browsers block `speechSynthesis.speak()` on page load or after inactivity without a preceding user interaction. The **🔊 播放机器人** button always works because it is triggered by a click.
 
 If `speechSynthesis` is not available, the TTS controls in Settings are hidden and a note is shown. The app remains fully functional without TTS.
 
