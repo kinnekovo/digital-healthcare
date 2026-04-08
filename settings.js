@@ -64,7 +64,7 @@ window.SETTINGS = (function () {
 
     // TTS enabled toggle
     var ttsToggle = document.getElementById("tts-enabled-toggle");
-    if (ttsToggle) ttsToggle.checked = prefs.ttsEnabled !== false;
+    if (ttsToggle) ttsToggle.checked = prefs.ttsEnabled ?? true;
 
     // TTS rate buttons
     var ttsRateBtns = document.querySelectorAll(".tts-rate-btn");

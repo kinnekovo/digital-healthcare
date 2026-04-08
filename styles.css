@@ -1135,6 +1135,13 @@ body.high-contrast .asr-panel {
   margin-bottom: 0.5rem;
 }
 
+/* TTS unsupported note */
+.tts-unsupported-note {
+  color: var(--color-warning, #b45309);
+  font-size: 0.9em;
+  margin-bottom: 0.5rem;
+}
+
 /* TTS rate buttons (reuse font-scale-btn style) */
 .tts-rate-btn {
   min-width: 80px;

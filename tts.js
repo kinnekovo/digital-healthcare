@@ -23,7 +23,7 @@ window.TTS = (function () {
       );
       var prefs = raw ? JSON.parse(raw) : {};
       return {
-        ttsEnabled: prefs.ttsEnabled !== false, // default true
+        ttsEnabled: prefs.ttsEnabled ?? true, // default true
         ttsRate:    typeof prefs.ttsRate === "number" ? prefs.ttsRate : 1.0,
       };
     } catch (_) {
